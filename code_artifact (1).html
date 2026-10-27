@@ -1,0 +1,988 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>近代中國風雲錄 - DSE歷史卡牌對戰</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@500;700;900&family=Noto+Sans+TC:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            touch-action: manipulation;
+            user-select: none;
+            -webkit-user-select: none;
+            background-color: #121212;
+            color: #e0e0e0;
+        }
+        .font-serif-tc {
+            font-family: 'Noto Serif TC', serif;
+        }
+        .card-transition {
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .card-transition:hover {
+            transform: translateY(-6px) scale(1.02);
+            box-shadow: 0 10px 20px -5px rgba(217, 119, 6, 0.4);
+        }
+        .card-selected {
+            transform: translateY(-10px) scale(1.04) !important;
+            border-color: #f59e0b !important;
+            box-shadow: 0 0 20px rgba(245, 158, 11, 0.6) !important;
+        }
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1f2937;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #4b5563;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between overflow-x-hidden">
+
+    <!-- 頂部導覽列與遊戲標題 -->
+    <header class="bg-stone-900 border-b border-stone-800 px-4 py-3 flex justify-between items-center shadow-md">
+        <div class="flex items-center gap-2">
+            <span class="text-amber-500 text-xl md:text-2xl"><i class="fa-solid fa-landmark"></i></span>
+            <div>
+                <h1 class="font-serif-tc font-bold text-base md:text-lg text-amber-400 leading-tight">近代中國風雲錄</h1>
+                <p class="text-[10px] md:text-xs text-stone-400">DSE 中史專題對戰 (1911 - 1945)</p>
+            </div>
+        </div>
+        <div class="flex items-center gap-2">
+            <button id="btn-rules" class="bg-stone-800 hover:bg-stone-700 text-stone-300 text-xs px-3 py-1.5 rounded-lg border border-stone-700 flex items-center gap-1 transition">
+                <i class="fa-solid fa-circle-info"></i> 玩法與考點
+            </button>
+            <button id="btn-restart" class="hidden bg-red-900/60 hover:bg-red-800 text-red-200 text-xs px-3 py-1.5 rounded-lg border border-red-700/50 transition flex items-center gap-1">
+                <i class="fa-solid fa-rotate-left"></i> 重選時期與陣營
+            </button>
+        </div>
+    </header>
+
+    <!-- 主遊戲容器 -->
+    <main class="flex-1 max-w-5xl w-full mx-auto p-2 md:p-4 flex flex-col">
+
+        <!-- 畫面 1: 選擇歷史時期與陣營 -->
+        <section id="scene-faction-select" class="flex-1 flex flex-col justify-center items-center py-4">
+            
+            <!-- 時期選擇器 -->
+            <div class="w-full max-w-3xl mb-6">
+                <h2 class="font-serif-tc text-center text-xl md:text-2xl font-black text-amber-400 mb-3">第一步：選擇歷史時期</h2>
+                <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 bg-stone-950 p-1.5 rounded-xl border border-stone-800">
+                    <button onclick="changeEra('era1')" id="era-btn-era1" class="era-btn py-2 px-1 text-xs font-bold rounded-lg border border-amber-500 bg-amber-900/40 text-amber-300 transition text-center">
+                        📜 辛亥革命<br><span class="text-[9px] opacity-75 font-normal">(1911 - 1912)</span>
+                    </button>
+                    <button onclick="changeEra('era1_5')" id="era-btn-era1_5" class="era-btn py-2 px-1 text-xs font-bold rounded-lg border border-stone-800 text-stone-400 hover:text-stone-200 transition text-center">
+                        ⚔️ 二次與護國<br><span class="text-[9px] opacity-75 font-normal">(1913 - 1916)</span>
+                    </button>
+                    <button onclick="changeEra('era1_8')" id="era-btn-era1_8" class="era-btn py-2 px-1 text-xs font-bold rounded-lg border border-stone-800 text-stone-400 hover:text-stone-200 transition text-center">
+                        🎓 五四與啟蒙<br><span class="text-[9px] opacity-75 font-normal">(1915 - 1919)</span>
+                    </button>
+                    <button onclick="changeEra('era2')" id="era-btn-era2" class="era-btn py-2 px-1 text-xs font-bold rounded-lg border border-stone-800 text-stone-400 hover:text-stone-200 transition text-center">
+                        🚩 北伐與軍閥<br><span class="text-[9px] opacity-75 font-normal">(1924 - 1928)</span>
+                    </button>
+                    <button onclick="changeEra('era3')" id="era-btn-era3" class="era-btn py-2 px-1 text-xs font-bold rounded-lg border border-stone-800 text-stone-400 hover:text-stone-200 transition text-center">
+                        🛡️ 全面抗戰<br><span class="text-[9px] opacity-75 font-normal">(1937 - 1945)</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- 陣營選擇標題 -->
+            <div class="text-center max-w-xl mb-4">
+                <h3 class="font-serif-tc text-lg md:text-xl font-bold text-stone-300">第二步：選擇你的歷史陣營</h3>
+                <p id="era-description" class="text-xs text-amber-500/90 mt-1">【辛亥革命】革命黨人起義推翻滿清專制，清政府皇族內閣垂死掙扎。</p>
+            </div>
+
+            <!-- 可選陣營列表 (動態渲染) -->
+            <div id="faction-grid" class="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full max-w-3xl px-2">
+                <!-- 由 JavaScript 根據時期動態生成 -->
+            </div>
+        </section>
+
+        <!-- 畫面 2: 對戰棋盤畫面 -->
+        <section id="scene-battle" class="hidden flex-1 flex flex-col justify-between gap-2 py-1">
+            
+            <!-- AI 對手資訊區域 -->
+            <div class="bg-stone-950/80 border border-stone-800 rounded-xl p-2.5 flex items-center justify-between shadow">
+                <div class="flex items-center gap-3">
+                    <div class="relative">
+                        <div id="ai-avatar" class="w-10 h-10 md:w-12 md:h-12 rounded-full bg-stone-800 border-2 border-red-600 flex items-center justify-center text-xl md:text-2xl">
+                            🐉
+                        </div>
+                        <span class="absolute -bottom-1 -right-1 text-[10px] bg-red-900 text-red-200 px-1 rounded font-bold">AI</span>
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <h3 id="ai-name" class="font-serif-tc font-bold text-stone-200 text-sm md:text-base">北洋政府</h3>
+                            <span id="ai-faction-tag" class="text-[10px] bg-stone-800 text-amber-500 px-1.5 py-0.5 rounded border border-amber-900/50">袁世凱陣營</span>
+                        </div>
+                        <!-- 血條/民心值 -->
+                        <div class="w-32 md:w-48 bg-stone-800 rounded-full h-3 mt-1 relative overflow-hidden border border-stone-700">
+                            <div id="ai-hp-bar" class="bg-gradient-to-r from-red-600 to-amber-600 h-full rounded-full transition-all duration-500" style="width: 100%;"></div>
+                            <span id="ai-hp-text" class="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white shadow-sm">100 / 100</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="text-right flex flex-col items-end">
+                    <span id="battle-era-tag" class="text-[10px] bg-amber-950 text-amber-400 border border-amber-800 px-2 py-0.5 rounded">辛亥與護國時期</span>
+                    <span class="text-xs text-stone-400 mt-1">AI 手牌庫</span>
+                </div>
+            </div>
+
+            <!-- 中央對決區域：隨機歷史環境事件發動 -->
+            <div class="my-auto py-1 flex flex-col items-center justify-center relative">
+                
+                <!-- 隨機歷史事件展示牌 -->
+                <div id="historical-event-banner" class="w-full max-w-lg bg-stone-900/90 border border-amber-600/50 rounded-lg p-2 mb-2 flex items-center gap-3 text-left shadow-lg">
+                    <span class="text-2xl" id="event-icon">📜</span>
+                    <div class="flex-1 min-w-0">
+                        <div class="flex justify-between items-center">
+                            <span class="text-[10px] text-amber-500 font-bold uppercase tracking-wider">本回合歷史事件</span>
+                            <span id="event-buff-tag" class="text-[10px] bg-amber-900/60 text-amber-300 px-1.5 rounded border border-amber-700">雙方政治護盾+6</span>
+                        </div>
+                        <h4 id="event-title" class="font-serif-tc text-xs md:text-sm font-bold text-amber-300 truncate">《中華民國臨時約法》頒布</h4>
+                        <p id="event-desc" class="text-[10px] text-stone-400 truncate">確立民主共和體制，政治防禦護盾數值提升。</p>
+                    </div>
+                </div>
+
+                <!-- 戰場交鋒卡牌顯影 -->
+                <div class="grid grid-cols-2 gap-3 md:gap-8 w-full max-w-lg items-center justify-items-center">
+                    <!-- AI 出牌區 -->
+                    <div class="flex flex-col items-center">
+                        <span class="text-[11px] text-stone-400 mb-1"><i class="fa-solid fa-robot"></i> AI 打出的卡牌</span>
+                        <div id="ai-played-card" class="w-32 h-40 md:w-36 md:h-48 bg-stone-900 border-2 border-dashed border-stone-700 rounded-lg flex flex-col items-center justify-center p-2 text-center transition-all duration-300">
+                            <i class="fa-solid fa-shield-halved text-2xl text-stone-700 mb-2"></i>
+                            <span class="text-xs text-stone-600">等待出牌...</span>
+                        </div>
+                    </div>
+
+                    <!-- 玩家出牌區 -->
+                    <div class="flex flex-col items-center">
+                        <span class="text-[11px] text-amber-400 mb-1"><i class="fa-solid fa-user"></i> 你打出的卡牌</span>
+                        <div id="player-played-card" class="w-32 h-40 md:w-36 md:h-48 bg-stone-900 border-2 border-dashed border-stone-700 rounded-lg flex flex-col items-center justify-center p-2 text-center transition-all duration-300">
+                            <i class="fa-solid fa-hand-pointer text-2xl text-stone-700 mb-2"></i>
+                            <span class="text-xs text-stone-600">請從下方選擇卡牌</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 戰局戰報提示欄 -->
+                <div id="battle-log" class="mt-2 bg-stone-950/90 border border-amber-900/30 text-amber-200 text-xs px-4 py-1.5 rounded-full max-w-md w-full text-center shadow-lg backdrop-blur-sm min-h-[32px] flex items-center justify-center">
+                    請點擊下方手牌出牌，進行回合對決！
+                </div>
+            </div>
+
+            <!-- 玩家資訊區域 (含能量系統) -->
+            <div class="bg-stone-950/80 border border-stone-800 rounded-xl p-2.5 flex items-center justify-between shadow">
+                <div class="flex items-center gap-3">
+                    <div class="relative">
+                        <div id="player-avatar" class="w-10 h-10 md:w-12 md:h-12 rounded-full bg-stone-800 border-2 border-amber-500 flex items-center justify-center text-xl md:text-2xl">
+                            ☀️
+                        </div>
+                        <span class="absolute -bottom-1 -right-1 text-[10px] bg-amber-700 text-amber-100 px-1 rounded font-bold">玩家</span>
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <h3 id="player-name" class="font-serif-tc font-bold text-amber-400 text-sm md:text-base">革命黨</h3>
+                            <span id="player-faction-tag" class="text-[10px] bg-amber-950 text-amber-300 px-1.5 py-0.5 rounded border border-amber-800">孫中山陣營</span>
+                        </div>
+                        <!-- 血條與歷史能量 -->
+                        <div class="flex items-center gap-2 mt-1">
+                            <div class="w-28 md:w-36 bg-stone-800 rounded-full h-3 relative overflow-hidden border border-stone-700">
+                                <div id="player-hp-bar" class="bg-gradient-to-r from-amber-600 to-green-600 h-full rounded-full transition-all duration-500" style="width: 100%;"></div>
+                                <span id="player-hp-text" class="absolute inset-0 flex items-center justify-center text-[9px] font-bold text-white shadow-sm">100 / 100</span>
+                            </div>
+                            <!-- 歷史技能能量點 -->
+                            <div class="flex items-center text-xs text-amber-400 gap-1 bg-stone-900 px-2 py-0.5 rounded border border-stone-800">
+                                <span>⚡ 能量:</span>
+                                <span id="player-energy-text" class="font-bold text-amber-300">2/3</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 回合行動按鈕 -->
+                <div class="flex items-center gap-2">
+                    <button id="btn-play-card" disabled onclick="playSelectedCard()" class="bg-amber-600 hover:bg-amber-500 disabled:bg-stone-800 disabled:text-stone-600 text-stone-950 font-bold px-4 py-2 rounded-lg text-xs md:text-sm border border-amber-400 shadow transition flex items-center gap-1">
+                        <i class="fa-solid fa-paper-plane"></i> 出牌對決
+                    </button>
+                </div>
+            </div>
+
+            <!-- 玩家手牌面板 -->
+            <div class="relative w-full">
+                <div class="text-xs text-stone-400 mb-1 flex justify-between px-1">
+                    <span><i class="fa-solid fa-clone"></i> 手牌庫 (基礎牌 + 專屬時期事件技能牌)</span>
+                    <span id="round-counter" class="text-amber-500 font-bold">第 1 回合</span>
+                </div>
+                <div id="player-hand" class="flex gap-2 md:gap-3 overflow-x-auto pb-2 pt-1 px-1 snap-x scrollbar-thin">
+                    <!-- 卡牌動態生成 -->
+                </div>
+            </div>
+
+        </section>
+
+        <!-- 畫面 3: 歷史 / 虛構結局彈窗 -->
+        <div id="modal-result" class="hidden fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4">
+            <div class="bg-stone-900 border-2 border-amber-600/80 rounded-2xl p-5 md:p-8 max-w-xl w-full text-center relative overflow-hidden shadow-2xl">
+                <span id="result-icon" class="text-5xl md:text-6xl mb-3 inline-block">👑</span>
+                <h2 id="result-title" class="font-serif-tc text-2xl md:text-3xl font-black text-amber-400 mb-1">歷史結局名稱</h2>
+                <p id="result-type" class="text-xs font-bold text-amber-600 uppercase tracking-widest mb-4">【 史實結局 】</p>
+
+                <div class="bg-stone-950/80 border border-stone-800 rounded-xl p-4 mb-6 text-left text-xs md:text-sm leading-relaxed text-stone-300 max-h-56 overflow-y-auto">
+                    <p id="result-description" class="mb-2">結局詳細歷史敘述與後續影響...</p>
+                    <hr class="border-stone-800 my-2">
+                    <p id="result-dse-note" class="text-amber-400/90 italic"><i class="fa-solid fa-graduation-cap"></i> <strong>DSE 中史考點點評：</strong>...</p>
+                </div>
+
+                <div class="flex justify-center gap-3">
+                    <button onclick="resetGame()" class="bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-stone-950 font-bold px-6 py-2.5 rounded-xl text-sm border border-amber-400 shadow-lg transition">
+                        <i class="fa-solid fa-rotate-right"></i> 重新選擇時期與陣營
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 玩法說明彈窗 -->
+        <div id="modal-rules" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+            <div class="bg-stone-900 border border-amber-700/60 rounded-2xl p-5 max-w-lg w-full text-left relative max-h-[85vh] flex flex-col">
+                <div class="flex justify-between items-center pb-3 border-b border-stone-800 mb-3">
+                    <h3 class="font-serif-tc font-bold text-lg text-amber-400"><i class="fa-solid fa-book"></i> 遊戲玩法說明</h3>
+                    <button id="btn-close-rules" class="text-stone-400 hover:text-white text-xl"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+                
+                <div class="overflow-y-auto space-y-3 text-xs md:text-sm text-stone-300 pr-1">
+                    <div class="bg-stone-950 p-3 rounded-lg border border-stone-800">
+                        <h4 class="font-bold text-amber-500 mb-1">⏳ 時期與陣營搭配：</h4>
+                        <p class="text-stone-400 text-xs">三大歷史時期各具特色，陣營與事件牌只在當前時期登場，並面對史實中的主要敵人。</p>
+                    </div>
+
+                    <div class="bg-stone-950 p-3 rounded-lg border border-stone-800">
+                        <h4 class="font-bold text-amber-500 mb-1">🎴 卡牌類型機制：</h4>
+                        <p class="text-stone-400 text-xs mb-1">&bull; ⚔️ **軍事打擊**：造成直接打擊傷害。</p>
+                        <p class="text-stone-400 text-xs mb-1">&bull; 🛡️ **政治外交**：構建防禦護盾抵銷敵方打擊。</p>
+                        <p class="text-stone-400 text-xs mb-1">&bull; 💚 **思想動員**：宣傳啟蒙恢復民心（血量）。</p>
+                        <p class="text-stone-400 text-xs">&bull; 🌟 **事件技能**：消耗1點能量，觸發專屬爆發與史實加成。</p>
+                    </div>
+
+                    <div class="bg-stone-950 p-3 rounded-lg border border-stone-800">
+                        <h4 class="font-bold text-amber-500 mb-1">📜 隨機歷史環境事件：</h4>
+                        <p class="text-stone-400 text-xs">每回合隨機刷新史實環境（如《臨時約法》、五四運動、淞滬會戰等），為特定類型卡牌提供額外 Buff 加成！</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- 頁腳 -->
+    <footer class="bg-stone-950 border-t border-stone-800/80 text-center py-2 text-[11px] text-stone-500">
+        DSE 中國歷史科複習輔助工具 &bull; 近代史專題（1911 - 1945）
+    </footer>
+
+    <!-- JavaScript 遊戲核心邏輯 -->
+    <script>
+        // --- 遊戲全局狀態 ---
+        const gameState = {
+            currentEra: 'era1',
+            playerFaction: null,
+            aiFaction: null,
+            playerHp: 100,
+            aiHp: 100,
+            playerEnergy: 2,
+            maxEnergy: 3,
+            round: 1,
+            selectedCardIndex: null,
+            playerHand: [],
+            aiHand: [],
+            currentEvent: null
+        };
+
+        // --- DOM 元素引用 ---
+        const sceneFactionSelect = document.getElementById('scene-faction-select');
+        const sceneBattle = document.getElementById('scene-battle');
+        const factionGrid = document.getElementById('faction-grid');
+        const eraDescription = document.getElementById('era-description');
+        const modalResult = document.getElementById('modal-result');
+        const modalRules = document.getElementById('modal-rules');
+        const btnRules = document.getElementById('btn-rules');
+        const btnCloseRules = document.getElementById('btn-close-rules');
+        const btnRestart = document.getElementById('btn-restart');
+        const btnPlayCard = document.getElementById('btn-play-card');
+
+        // --- 卡牌類別與圖示 ---
+        const TYPE_MAP = {
+            military: { label: '軍事打擊', color: 'text-red-400 border-red-800 bg-red-950/50', icon: '⚔️', effect: '直接攻擊' },
+            politics: { label: '政治外交', color: 'text-blue-400 border-blue-800 bg-blue-950/50', icon: '🛡️', effect: '護盾防禦' },
+            ideology: { label: '思想動員', color: 'text-green-400 border-green-800 bg-green-950/50', icon: '💚', effect: '恢復民心' },
+            skill: { label: '歷史事件技能', color: 'text-amber-300 border-amber-600 bg-amber-950/70', icon: '🌟', effect: '戰術爆發' }
+        };
+
+        // --- 常規基礎牌庫 ---
+        const BASE_CARDS = [
+            { id: 'b_m1', name: '常規軍事演訓', type: 'military', power: 22, isSkill: false, desc: '部隊日常演練與陣地火力進攻。', history: '近代各派軍閥與革命軍日常部隊訓練。' },
+            { id: 'b_m2', name: '前線步兵拉鋸', type: 'military', power: 26, isSkill: false, desc: '發起步兵衝鋒，造成高額直接傷害。', history: '近代拉鋸戰中的常規陣地戰術。' },
+            { id: 'b_m3', name: '軍備火砲轟炸', type: 'military', power: 24, isSkill: false, desc: '調集大砲壓制敵方陣地。', history: '維持軍事火力與軍械調配。' },
+            
+            { id: 'b_p1', name: '政黨通電協商', type: 'politics', power: 18, isSkill: false, desc: '發起外交斡旋，構建政治防禦護盾。', history: '民國初年常見的電報發表政治立場與談判。' },
+            { id: 'b_p2', name: '憲政立法條約', type: 'politics', power: 22, isSkill: false, desc: '利用法理規則抵擋敵方本回合打擊。', history: '民初知識份子推動憲政體制建立與保護。' },
+            { id: 'b_p3', name: '地方自治談判', type: 'politics', power: 20, isSkill: false, desc: '爭取地方勢力支持，抵銷傷害。', history: '近代省界與地方勢力之間的政治合縱連橫。' },
+            
+            { id: 'b_i1', name: '報刊思想宣傳', type: 'ideology', power: 18, isSkill: false, desc: '出版報刊喚醒大眾，恢復民心與血量。', history: '如《申報》、《新青年》等思想啟蒙媒介。' },
+            { id: 'b_i2', name: '演講宣誓集會', type: 'ideology', power: 22, isSkill: false, desc: '凝聚民心士氣，提供大量治療效果。', history: '近代群眾愛國集會與誓師大會。' },
+            { id: 'b_i3', name: '青年傳單發放', type: 'ideology', power: 20, isSkill: false, desc: '動員基層民眾，持續穩固民心血量。', history: '青年學生與知識分子動員社會的力量。' }
+        ];
+
+        // --- 歷史時期定義 ---
+        const ERAS = {
+            era1: {
+                id: 'era1',
+                name: '辛亥革命 (1911-1912)',
+                desc: '【辛亥革命與滿清覆滅】革命黨人發動起義推翻二千多年君主專制，清朝皇族內閣垂死掙扎。',
+                factions: ['revolution_era1', 'qing_era1'],
+                events: [
+                    { title: '《中華民國臨時約法》頒布', desc: '確立民主共和體制，政治防禦護盾數值提升。', type: 'politics', buff: 6, icon: '📜' },
+                    { title: '黃花崗起義熱血傳播', desc: '革命烈士精神感染全國，思想恢復治療能力提升。', type: 'ideology', buff: 6, icon: '✊' },
+                    { title: '武昌起義各省響應', desc: '清朝統治土崩瓦解，軍事打擊威力大增。', type: 'military', buff: 7, icon: '⚔️' }
+                ]
+            },
+            era1_5: {
+                id: 'era1_5',
+                name: '二次與護國 (1913-1916)',
+                desc: '【宋案、二次革命與護國戰爭】袁世凱刺殺宋教仁並強行稱帝，孫中山發動二次革命，蔡鍔發起護國戰爭討袁。',
+                factions: ['revolution_era1_5', 'huguo_era1_5', 'beiyang_era1_5'],
+                events: [
+                    { title: '宋教仁遇刺案爆發', desc: '共和憲政危機，政治護盾防禦效果提升。', type: 'politics', buff: 6, icon: '⚖️' },
+                    { title: '袁世凱頒布新約法', desc: '擴大總統權力，軍事威壓強化。', type: 'military', buff: 6, icon: '📜' },
+                    { title: '護國討袁誓師', desc: '全國通電聲討帝制，事件技能威力爆發。', type: 'skill', buff: 8, icon: '⚔️' }
+                ]
+            },
+            era1_8: {
+                id: 'era1_8',
+                name: '五四與啟蒙 (1915-1919)',
+                desc: '【新文化運動與五四運動】巴黎和會外交失敗引發五四運動，愛國學生發起三罷鬥爭。',
+                factions: ['student_era1_8', 'beiyang_era1_8'],
+                events: [
+                    { title: '巴黎和會山東問題爆發', desc: '外交割讓引發全民憤怒，思想動員大幅強化。', type: 'ideology', buff: 8, icon: '🔥' },
+                    { title: '《新青年》雜誌創刊', desc: '提倡民主與科學，思想回復能力提升。', type: 'ideology', buff: 6, icon: '📘' }
+                ]
+            },
+            era2: {
+                id: 'era2',
+                name: '北伐與軍閥 (1924-1928)',
+                desc: '【北伐與第一次國共合作】國共建立第一次合作，創辦黃埔軍校出師北伐掃蕩軍閥。',
+                factions: ['kmt_era2', 'ccp_era2', 'beiyang_era2'],
+                events: [
+                    { title: '黃埔軍校成立', desc: '培養軍事政治人才，雙方軍事攻擊力提升。', type: 'military', buff: 6, icon: '🎖️' },
+                    { title: '五卅運動爆發', desc: '全國工人與學生大罷工，思想民心恢復大幅增加。', type: 'ideology', buff: 7, icon: '🚩' },
+                    { title: '國民革命軍誓師北伐', desc: '打倒列強除軍閥，軍事事件技能威力激增。', type: 'skill', buff: 8, icon: '⚔️' }
+                ]
+            },
+            era3: {
+                id: 'era3',
+                name: '全面抗戰 (1937-1945)',
+                desc: '【全民族抗戰】國共第二次合作建立抗日民族統一戰線，正面與敵後戰場共同抗敵。',
+                factions: ['kmt_era3', 'ccp_era3', 'japan_era3'],
+                events: [
+                    { title: '抗日民族統一戰線形成', desc: '國共二次合作發表通電，事件技能威力+8！', type: 'skill', buff: 8, icon: '🤝' },
+                    { title: '《論持久戰》發表', desc: '確定持久抗戰規律，思想民心恢復能力大增。', type: 'ideology', buff: 7, icon: '📘' },
+                    { title: '淞滬會戰血戰爆發', desc: '粉碎日軍三月亡華狂言，軍事打擊牌強度激增。', type: 'military', buff: 8, icon: '🔥' },
+                    { title: '西安事變和平解決', desc: '逼蔣抗日，政治談判與防禦效果提升。', type: 'politics', buff: 7, icon: '🕊️' }
+                ]
+            }
+        };
+
+        // --- 陣營詳細資料 ---
+        const FACTIONS = {
+            // === 時期一：辛亥革命 ===
+            revolution_era1: {
+                id: 'revolution_era1',
+                name: '革命黨 (孫中山/黃興)',
+                tag: '驅除榻虜 / 創立民國',
+                avatar: '☀️',
+                era: 'era1',
+                isHistoricalWinner: true,
+                aiOpponent: 'qing_era1',
+                skillCards: [
+                    { id: 's_r1', name: '武昌起義', type: 'skill', power: 34, cost: 1, isSkill: true, desc: '湖北新軍起義，各省響應，造成重額軍事打擊。', history: '1911年10月10日爆發，推翻清朝帝制。' },
+                    { id: 's_r2', name: '黃花崗起義', type: 'skill', power: 30, cost: 1, isSkill: true, desc: '七十二烈士熱血喚醒全國，提供民心恢復與攻擊。', history: '1911年廣州起義，為辛亥革命奠定基礎。' },
+                    { id: 's_r3', name: '南京臨時政府成立', type: 'skill', power: 32, cost: 1, isSkill: true, desc: '孫中山就任臨時大總統，獲得極高政治防禦護盾。', history: '1912年元旦中華民國成立。' }
+                ]
+            },
+            qing_era1: {
+                id: 'qing_era1',
+                name: '清政府 (載沣/皇族內閣)',
+                tag: '保衛皇權 / 垂死掙扎',
+                avatar: '👑',
+                era: 'era1',
+                isHistoricalWinner: false,
+                aiOpponent: 'revolution_era1',
+                skillCards: [
+                    { id: 's_q1', name: '皇族內閣集權', type: 'skill', power: 31, cost: 1, isSkill: true, desc: '實施預備立憲壟斷大權，獲得高額政治護盾。', history: '1911年清廷立憲騙局曝光。' },
+                    { id: 's_q2', name: '鐵路國有化法令', type: 'skill', power: 33, cost: 1, isSkill: true, desc: '強收川漢鐵路路權，造成直接打擊。', history: '引發四川保路運動與武昌起義導火線。' },
+                    { id: 's_q3', name: '起用袁世凱北洋軍', type: 'skill', power: 36, cost: 1, isSkill: true, desc: '派北洋軍南下鎮壓起義，造成極高軍事傷害。', history: '清廷被迫起用袁世凱鎮壓革命。' }
+                ]
+            },
+
+            // === 時期二：二次與護國 ===
+            revolution_era1_5: {
+                id: 'revolution_era1_5',
+                name: '國民黨討袁軍 (孫中山)',
+                tag: '二次革命 / 討伐獨裁',
+                avatar: '☀️',
+                era: 'era1_5',
+                isHistoricalWinner: false,
+                aiOpponent: 'beiyang_era1_5',
+                skillCards: [
+                    { id: 's_r1_5_1', name: '宋案法律控訴', type: 'skill', power: 32, cost: 1, isSkill: true, desc: '揭露刺宋內幕，獲得高額政治防禦護盾。', history: '1913年宋教仁於上海遇刺案。' },
+                    { id: 's_r1_5_2', name: '江西湖口起兵', type: 'skill', power: 35, cost: 1, isSkill: true, desc: '李烈鈞發起二次革命，發起軍事強攻。', history: '1913年孫中山號召討伐袁世凱。' }
+                ]
+            },
+            huguo_era1_5: {
+                id: 'huguo_era1_5',
+                name: '護國軍 (蔡鍔/梁啟超)',
+                tag: '雲南誓師 / 護弘共和',
+                avatar: '⚔️',
+                era: 'era1_5',
+                isHistoricalWinner: true,
+                aiOpponent: 'beiyang_era1_5',
+                skillCards: [
+                    { id: 's_h1', name: '雲南獨立通電', type: 'skill', power: 34, cost: 1, isSkill: true, desc: '雲南誓師討袁，獲得護盾並發起強攻。', history: '1915年護國戰爭爆發。' },
+                    { id: 's_h2', name: '川南瀘州大捷', type: 'skill', power: 38, cost: 1, isSkill: true, desc: '以少勝多重創北洋主力，造成高額打擊。', history: '護國軍在四川擊敗北洋正規軍。' }
+                ]
+            },
+            beiyang_era1_5: {
+                id: 'beiyang_era1_5',
+                name: '北洋政府 (袁世凱)',
+                tag: '掌控實權 / 洪憲帝制',
+                avatar: '🐉',
+                era: 'era1_5',
+                isHistoricalWinner: false,
+                aiOpponent: 'huguo_era1_5',
+                skillCards: [
+                    { id: 's_b1', name: '簽署二十條款', type: 'skill', power: 32, cost: 1, isSkill: true, desc: '接受日本要求換取支持，高額直接打擊。', history: '1915年簽署「五九國恥」條款。' },
+                    { id: 's_b2', name: '洪憲稱帝', type: 'skill', power: 37, cost: 1, isSkill: true, desc: '廢除共和稱帝，強大軍事威壓。', history: '1915年底袁世凱稱帝引發全國強烈反對。' }
+                ]
+            },
+
+            // === 時期三：五四與啟蒙 ===
+            student_era1_8: {
+                id: 'student_era1_8',
+                name: '五四青年學生與知識分子',
+                tag: '外爭主權 / 内除國賊',
+                avatar: '🎓',
+                era: 'era1_8',
+                isHistoricalWinner: true,
+                aiOpponent: 'beiyang_era1_8',
+                skillCards: [
+                    { id: 's_s1', name: '五四遊行示威', type: 'skill', power: 32, cost: 1, isSkill: true, desc: '痛擊賣國官員，大額恢復民心血量。', history: '1919年5月4日北京學生爆發愛國遊行。' },
+                    { id: 's_s2', name: '全國三罷鬥爭', type: 'skill', power: 38, cost: 1, isSkill: true, desc: '罷課罷工罷市，高額護盾與精神治療。', history: '五四運動擴展至全國。' },
+                    { id: 's_s3', name: '新文化運動啟蒙', type: 'skill', power: 32, cost: 1, isSkill: true, desc: '提倡民主與科學，大幅回滿民心血量。', history: '陳獨秀、胡適等創辦《新青年》。' }
+                ]
+            },
+            beiyang_era1_8: {
+                id: 'beiyang_era1_8',
+                name: '皖系北洋政府 (段祺瑞)',
+                tag: '武力統一 / 拒簽和約',
+                avatar: '🐉',
+                era: 'era1_8',
+                isHistoricalWinner: false,
+                aiOpponent: 'student_era1_8',
+                skillCards: [
+                    { id: 's_b1_8', name: '巴黎和會妥協', type: 'skill', power: 33, cost: 1, isSkill: true, desc: '外交讓步，獲得政治防禦護盾。', history: '段祺瑞政府退讓山東權益。' },
+                    { id: 's_b2_8', name: '軍警逮捕學生', type: 'skill', power: 36, cost: 1, isSkill: true, desc: '鎮壓學生遊行，造成高額直接打擊。', history: '1919年5月軍警逮捕愛國學生。' }
+                ]
+            },
+
+            // === 時期四：北伐與軍閥 ===
+            kmt_era2: {
+                id: 'kmt_era2',
+                name: '國民革命軍 (蔣介石)',
+                tag: '誓師北伐 / 統一全國',
+                avatar: '☀️',
+                era: 'era2',
+                isHistoricalWinner: true,
+                aiOpponent: 'beiyang_era2',
+                skillCards: [
+                    { id: 's_k2_1', name: '國共第一次合作', type: 'skill', power: 34, cost: 1, isSkill: true, desc: '聯俄容共，獲得政治護盾與軍事加成。', history: '1924年國民黨一大正式建立合作。' },
+                    { id: 's_k2_2', name: '黃埔建軍', type: 'skill', power: 35, cost: 1, isSkill: true, desc: '創立陸軍軍官學校，提升極高攻擊力。', history: '1924年廣州黃埔軍校成立。' },
+                    { id: 's_k2_3', name: '誓師北伐', type: 'skill', power: 40, cost: 1, isSkill: true, desc: '連破吳佩孚、孫傳芳主力，造成破滅級傷害。', history: '1926年國民革命軍由廣東出師北伐。' }
+                ]
+            },
+            beiyang_era2: {
+                id: 'beiyang_era2',
+                name: '直奉軍閥聯軍 (吳佩孚/張作霖)',
+                tag: '軍閥割據 / 武力爭霸',
+                avatar: '🐉',
+                era: 'era2',
+                isHistoricalWinner: false,
+                aiOpponent: 'kmt_era2',
+                skillCards: [
+                    { id: 's_b2_1', name: '汀泗橋賀勝橋防線', type: 'skill', power: 34, cost: 1, isSkill: true, desc: '憑險設防，提供巨大政治護盾防禦。', history: '1926年吳佩孚部隊在湖北堅守險要。' },
+                    { id: 's_b2_2', name: '安國軍政府', type: 'skill', power: 35, cost: 1, isSkill: true, desc: '張作霖掌控北京，造成強大政治與軍事打擊。', history: '奉系軍閥控制北京政權。' }
+                ]
+            },
+            ccp_era2: {
+                id: 'ccp_era2',
+                name: '早期共產黨 (陳獨秀/毛澤東)',
+                tag: '工農運動 / 支援北伐',
+                avatar: '🛠️',
+                era: 'era2',
+                isHistoricalWinner: true,
+                aiOpponent: 'beiyang_era2',
+                skillCards: [
+                    { id: 's_c2_1', name: '中共一大成立', type: 'skill', power: 32, cost: 1, isSkill: true, desc: '確立革命綱領，獲得大量民心恢復。', history: '1921年於上海及嘉興南湖召開。' },
+                    { id: 's_c2_2', name: '省港大罷工', type: 'skill', power: 37, cost: 1, isSkill: true, desc: '封鎖香港經濟支援北伐，獲得防禦與精神恢復。', history: '1925年爆發持續16個月的大罷工。' }
+                ]
+            },
+
+            // === 時期五：全面抗戰 ===
+            kmt_era3: {
+                id: 'kmt_era3',
+                name: '國民政府正面戰場',
+                tag: '正面會戰 / 血戰到底',
+                avatar: '☀️',
+                era: 'era3',
+                isHistoricalWinner: true,
+                aiOpponent: 'japan_era3',
+                skillCards: [
+                    { id: 's_k3_1', name: '淞滬會戰', type: 'skill', power: 40, cost: 1, isSkill: true, desc: '粉碎三月亡華狂言，造成毀滅性軍事打擊。', history: '1937年正面戰場規模最大的會戰。' },
+                    { id: 's_k3_2', name: '台兒莊大捷', type: 'skill', power: 42, cost: 1, isSkill: true, desc: '重創日軍精銳，極高爆發傷害與民心振奮。', history: '1938年正面戰場取得的首場大捷。' },
+                    { id: 's_k3_3', name: '國共第二次合作', type: 'skill', power: 36, cost: 1, isSkill: true, desc: '建立抗日民族統一戰線，大幅補充民心血量與護盾。', history: '1937年9月國共實現第二次合作。' }
+                ]
+            },
+            ccp_era3: {
+                id: 'ccp_era3',
+                name: '八路軍/新四軍 (毛澤東/朱德)',
+                tag: '敵後戰場 / 遊擊持久戰',
+                avatar: '🛠️',
+                era: 'era3',
+                isHistoricalWinner: true,
+                aiOpponent: 'japan_era3',
+                skillCards: [
+                    { id: 's_c3_1', name: '西安事變和平解決', type: 'skill', power: 35, cost: 1, isSkill: true, desc: '促成停止內戰，獲得極高政治防禦護盾。', history: '1936年12月促成共同抗日。' },
+                    { id: 's_c3_2', name: '平型關大捷', type: 'skill', power: 38, cost: 1, isSkill: true, desc: '伏擊成功打破神話，高額傷害與民心鼓舞。', history: '1937年9月抗戰首場勝利。' },
+                    { id: 's_c3_3', name: '百團大戰', type: 'skill', power: 42, cost: 1, isSkill: true, desc: '破襲日軍交通線，破滅級打擊。', history: '1940年八路軍敵後大規模進攻。' }
+                ]
+            },
+            japan_era3: {
+                id: 'japan_era3',
+                name: '日本侵略軍 (關東軍/大本營)',
+                tag: '軍國主義 / 全面侵華',
+                avatar: '🗾',
+                era: 'era3',
+                isHistoricalWinner: false,
+                aiOpponent: 'kmt_era3',
+                skillCards: [
+                    { id: 's_j3_1', name: '九一八事變', type: 'skill', power: 35, cost: 1, isSkill: true, desc: '強行侵佔東北，造成直接軍事重創。', history: '1931年十四年抗戰的開始。' },
+                    { id: 's_j3_2', name: '七七事變 (盧溝橋)', type: 'skill', power: 39, cost: 1, isSkill: true, desc: '全面侵華爆發，高額攻擊與壓制。', history: '1937年7月標誌全面抗戰爆發。' }
+                ]
+            }
+        };
+
+        // --- 結局資料庫 ---
+        const ENDINGS = {
+            // === 時期一：辛亥革命 ===
+            era1_historical: {
+                title: '清朝帝制覆滅與帝制走向共和',
+                type: '史實結局 (正史達成)',
+                icon: '📜',
+                desc: '【歷史真實走向】二千多年的君主專制體制徹底覆滅！武昌起義爆發後各省紛紛響應獨立，清帝溥儀於1912年頒布退位詔書。南京臨時政府成立，亞洲第一個民主共和國——中華民國誕生。',
+                dseNote: '① 辛亥革命歷史意義：推翻清朝專制、結束帝制、建立共和國家；② 孫中山《臨時約法》：具備憲法性質，防止袁世凱專制。'
+            },
+            era1_alternate: {
+                title: '清廷皇族內閣繼續維護專制',
+                type: '平行時空 / 虛構結局 (歷史改寫)',
+                icon: '⛓️',
+                desc: '【平行歷史改寫】起義不幸遭清軍鎮壓失敗。滿清皇族內閣進一步鞏固專制統治，保路運動與民主革命火種遭清洗，中國沉淪於皇權專制體制中。',
+                dseNote: '此為平行虛構結局。真實歷史中，武昌起義於1911年成功，15個省份宣告獨立，清政府宣告覆滅。'
+            },
+
+            // === 時期二：二次與護國 ===
+            era1_5_historical: {
+                title: '護國再造共和與袁氏稱帝失敗',
+                type: '史實結局 (正史達成)',
+                icon: '🏛️',
+                desc: '【歷史真實走向】民主共和體制獲得維護！袁世凱刺殺宋教仁後強推洪憲稱帝，引發蔡鍔於雲南爆發護國戰爭，全國通電聲討。袁世凱被迫於83天後取消帝制。',
+                dseNote: '① 護國戰爭：蔡鍔等雲南起兵討袁，維護了民主共和制度；② 政治影響：帝制復辟徹底失敗，共和觀念深植人心。'
+            },
+            era1_5_alternate: {
+                title: '洪憲帝國建立與民主夢碎',
+                type: '平行時空 / 虛構結局 (歷史改寫)',
+                icon: '👑',
+                desc: '【平行歷史改寫】護國軍在前線潰敗，袁世凱帝制復辟成功，洪憲帝國穩固，中國重回帝制極權時代。',
+                dseNote: '此為平行虛構結局。正史中袁世凱因全國強烈聲討與護國軍軍事打擊，稱帝83天後被迫取消帝制。'
+            },
+
+            // === 時期三：五四與啟蒙 ===
+            era1_8_historical: {
+                title: '巴黎和會拒簽與五四精神永存',
+                type: '史實結局 (正史達成)',
+                icon: '🎓',
+                desc: '【歷史真實走向】愛國運動取得重大勝利！五四運動促使當局拒絕在《凡爾賽和約》上簽字，並撤銷賣國官員職務。新文化運動思想啟蒙喚醒全社會。',
+                dseNote: '① 五四運動意義：無產階級登上了歷史舞台，新民主主義革命的開端；② 外交成果：中國代表拒絕簽署凡爾賽條約。'
+            },
+            era1_8_alternate: {
+                title: '思想鎮壓與山東權益割讓',
+                type: '平行時空 / 虛構結局 (歷史改寫)',
+                icon: '🥀',
+                desc: '【平行歷史改寫】學生三罷運動遭北洋政府武力彈壓，山東權益遭割讓，思想啟蒙運動受挫。',
+                dseNote: '此為平行虛構結局。正史中五四運動成功迫使北洋政府釋放學生並拒簽凡爾賽條約。'
+            },
+
+            // === 時期四：北伐與軍閥 ===
+            era2_historical: {
+                title: '國共合作北伐與形式統一',
+                type: '史實結局 (正史達成)',
+                icon: '🎖️',
+                desc: '【歷史真實走向】國共第一次合作順利推進！黃埔軍校出師北伐，連破吳佩孚、孫傳芳主力，完成了國家形式上的統一。',
+                dseNote: '① 第一次國共合作：孫中山三大政策；② 北伐成功主因：黃埔建軍軍紀嚴明、國共密切協作動員工農支持。'
+            },
+            era2_alternate: {
+                title: '軍閥盤踞割據與革命全面挫敗',
+                type: '平行時空 / 虛構結局 (歷史改寫)',
+                icon: '⚔️',
+                desc: '【平行歷史改寫】北伐軍不幸於前線潰敗，直奉軍閥與地方割據勢力繼續盤踞北方，中國陷入永久性軍閥分裂中。',
+                dseNote: '此為平行虛構結局。正史中北伐軍於1926-1928年間成功擊敗軍閥主力，南京國民政府建立。'
+            },
+
+            // === 時期五：全面抗戰 ===
+            era3_historical: {
+                title: '全民族抗戰勝利與日本無條件投降',
+                type: '史實結局 (正史達成)',
+                icon: '🕊️',
+                desc: '【歷史真實走向】全民族抗日民族統一戰線發揮堅不可摧力量！國共第二次合作，正面與敵後戰場配合。日本軍國主義徹底潰敗無條件投降！',
+                dseNote: '① 抗戰勝利主因：抗日民族統一戰線（全民族團結）、正面與敵後戰場配合；② 歷史意義：近百年抵抗外侮首次完全勝利。'
+            },
+            era3_alternate: {
+                title: '國土完全淪陷與民族浩劫悲劇',
+                type: '平行時空 / 虛構結局 (歷史改寫)',
+                icon: '🌋',
+                desc: '【平行歷史改寫】抵抗防線全面潰敗，日軍軍國主義狂言成真，中華國土全境淪陷。',
+                dseNote: '此為平行虛構結局。真實歷史中，中國人民憑藉全民族團結持久抗戰，於1945年取得完全勝利！'
+            }
+        };
+
+        // --- 切換歷史時期 ---
+        function changeEra(eraKey) {
+            gameState.currentEra = eraKey;
+            
+            document.querySelectorAll('.era-btn').forEach(btn => {
+                btn.className = "era-btn py-2 px-1 text-xs font-bold rounded-lg border border-stone-800 text-stone-400 hover:text-stone-200 transition text-center";
+            });
+            
+            const activeBtn = document.getElementById(`era-btn-${eraKey}`);
+            if (activeBtn) {
+                activeBtn.className = "era-btn py-2 px-1 text-xs font-bold rounded-lg border border-amber-500 bg-amber-900/40 text-amber-300 transition text-center";
+            }
+
+            eraDescription.innerText = ERAS[eraKey].desc;
+            renderFactionGrid();
+        }
+
+        // --- 渲染可選陣營 ---
+        function renderFactionGrid() {
+            factionGrid.innerHTML = '';
+            const era = ERAS[gameState.currentEra];
+
+            era.factions.forEach(fKey => {
+                const f = FACTIONS[fKey];
+                if (!f) return;
+
+                const card = document.createElement('div');
+                card.className = "bg-stone-900 hover:bg-stone-850 border border-stone-800 hover:border-amber-600/70 p-4 rounded-xl cursor-pointer transition shadow flex items-center gap-3";
+                card.onclick = () => selectFaction(fKey);
+
+                card.innerHTML = `
+                    <div class="text-3xl md:text-4xl w-12 h-12 flex items-center justify-center bg-stone-950 rounded-full border border-stone-700">${f.avatar}</div>
+                    <div class="flex-1 min-w-0">
+                        <div class="flex justify-between items-center mb-1">
+                            <h4 class="font-serif-tc font-bold text-amber-300 text-sm md:text-base">${f.name}</h4>
+                            <span class="text-[10px] bg-amber-950 text-amber-400 border border-amber-800 px-1.5 py-0.5 rounded">${f.tag}</span>
+                        </div>
+                        <p class="text-[11px] text-stone-400 truncate">專屬事件技能：${f.skillCards.map(s => s.name).join('、')}</p>
+                    </div>
+                `;
+                factionGrid.appendChild(card);
+            });
+        }
+
+        // --- 選擇陣營並初始化對戰 ---
+        function selectFaction(factionKey) {
+            const playerF = FACTIONS[factionKey];
+            const aiF = FACTIONS[playerF.aiOpponent] || FACTIONS['beiyang_era1_5'];
+
+            gameState.playerFaction = playerF;
+            gameState.aiFaction = aiF;
+            gameState.playerHp = 100;
+            gameState.aiHp = 100;
+            gameState.playerEnergy = 2;
+            gameState.round = 1;
+            gameState.selectedCardIndex = null;
+
+            sceneFactionSelect.classList.add('hidden');
+            sceneBattle.classList.remove('hidden');
+            btnRestart.classList.remove('hidden');
+
+            document.getElementById('player-name').innerText = playerF.name;
+            document.getElementById('player-avatar').innerText = playerF.avatar;
+            document.getElementById('player-faction-tag').innerText = playerF.tag;
+
+            document.getElementById('ai-name').innerText = aiF.name;
+            document.getElementById('ai-avatar').innerText = aiF.avatar;
+            document.getElementById('ai-faction-tag').innerText = aiF.tag;
+
+            document.getElementById('battle-era-tag').innerText = ERAS[gameState.currentEra].name;
+            document.getElementById('round-counter').innerText = `第 ${gameState.round} 回合`;
+
+            updateHpBar('player', 100);
+            updateHpBar('ai', 100);
+            document.getElementById('player-energy-text').innerText = `${gameState.playerEnergy}/${gameState.maxEnergy}`;
+
+            gameState.playerHand = buildDeck(playerF);
+            gameState.aiHand = buildDeck(aiF);
+
+            triggerRandomHistoricalEvent();
+            renderPlayerHand();
+        }
+
+        // --- 構建套牌牌庫 ---
+        function buildDeck(faction) {
+            const baseShuffled = [...BASE_CARDS].sort(() => Math.random() - 0.5).slice(0, 3);
+            const skills = [...faction.skillCards];
+            return [...baseShuffled, ...skills].sort(() => Math.random() - 0.5);
+        }
+
+        // --- 刷新隨機歷史環境事件 ---
+        function triggerRandomHistoricalEvent() {
+            const eraEvents = ERAS[gameState.currentEra].events;
+            const randomEvt = eraEvents[Math.floor(Math.random() * eraEvents.length)];
+            gameState.currentEvent = randomEvt;
+
+            const typeInfo = TYPE_MAP[randomEvt.type] || TYPE_MAP['military'];
+
+            document.getElementById('event-icon').innerText = randomEvt.icon;
+            document.getElementById('event-title').innerText = randomEvt.title;
+            document.getElementById('event-desc').innerText = randomEvt.desc;
+            document.getElementById('event-buff-tag').innerText = `雙方${typeInfo.label}+${randomEvt.buff}`;
+        }
+
+        // --- 渲染手牌 ---
+        function renderPlayerHand() {
+            const handContainer = document.getElementById('player-hand');
+            handContainer.innerHTML = '';
+
+            gameState.playerHand.forEach((card, idx) => {
+                const typeInfo = TYPE_MAP[card.type] || TYPE_MAP['military'];
+                const cardEl = document.createElement('div');
+                
+                const isSelected = (gameState.selectedCardIndex === idx);
+                const canAfford = !card.isSkill || (gameState.playerEnergy >= (card.cost || 1));
+
+                cardEl.className = `min-w-[125px] md:min-w-[140px] max-w-[140px] bg-stone-900 border ${isSelected ? 'card-selected' : 'border-stone-700'} rounded-xl p-2.5 flex flex-col justify-between cursor-pointer card-transition relative ${!canAfford ? 'opacity-50 grayscale' : ''}`;
+                cardEl.onclick = () => {
+                    if (!canAfford) return;
+                    gameState.selectedCardIndex = idx;
+                    renderPlayerHand();
+                    btnPlayCard.disabled = false;
+                };
+
+                cardEl.innerHTML = `
+                    <div>
+                        <div class="flex justify-between items-center mb-1">
+                            <span class="text-[10px] ${typeInfo.color} px-1.5 py-0.5 rounded border font-bold flex items-center gap-1">
+                                ${typeInfo.icon} ${typeInfo.label}
+                            </span>
+                            ${card.isSkill ? `<span class="text-[10px] text-amber-400 font-bold">⚡${card.cost || 1}</span>` : ''}
+                        </div>
+                        <h4 class="font-serif-tc text-xs md:text-sm font-bold text-amber-200 mt-1 leading-tight">${card.name}</h4>
+                        <p class="text-[10px] text-stone-400 mt-1 line-clamp-2">${card.desc}</p>
+                    </div>
+                    <div class="mt-2 pt-1 border-t border-stone-800 flex justify-between items-center text-[10px]">
+                        <span class="text-stone-500">數值:</span>
+                        <span class="font-bold text-amber-400">${card.power}</span>
+                    </div>
+                `;
+
+                handContainer.appendChild(cardEl);
+            });
+
+            if (gameState.selectedCardIndex === null) {
+                btnPlayCard.disabled = true;
+            }
+        }
+
+        // --- 顯示打出的卡牌 ---
+        function displayPlayedCard(elementId, card) {
+            const el = document.getElementById(elementId);
+            const typeInfo = TYPE_MAP[card.type] || TYPE_MAP['military'];
+
+            el.innerHTML = `
+                <div class="w-full h-full flex flex-col justify-between p-2 text-left">
+                    <span class="text-[10px] ${typeInfo.color} px-1 rounded border self-start font-bold">${typeInfo.icon} ${typeInfo.label}</span>
+                    <h4 class="font-serif-tc text-xs md:text-sm font-bold text-amber-300">${card.name}</h4>
+                    <p class="text-[9px] text-stone-400 line-clamp-2">${card.history || card.desc}</p>
+                    <div class="text-[10px] text-right text-amber-400 font-bold">效能: ${card.power}</div>
+                </div>
+            `;
+            el.className = "w-32 h-40 md:w-36 md:h-48 bg-stone-900 border-2 border-amber-500/80 rounded-lg shadow-lg transition-all duration-300";
+        }
+
+        // --- 傷害與護盾演算機制 ---
+        function calculateDamage(pCard, aCard) {
+            let pPower = pCard.power;
+            let aPower = aCard.power;
+
+            const env = gameState.currentEvent;
+            if (pCard.type === env.type) pPower += env.buff;
+            if (aCard.type === env.type) aPower += env.buff;
+
+            let pDmg = 0, pShield = 0, pHeal = 0;
+            let aDmg = 0, aShield = 0, aHeal = 0;
+
+            if (pCard.type === 'military' || pCard.type === 'skill') pDmg = pPower;
+            else if (pCard.type === 'politics') pShield = pPower;
+            else if (pCard.type === 'ideology') pHeal = pPower;
+
+            if (aCard.type === 'military' || aCard.type === 'skill') aDmg = aPower;
+            else if (aCard.type === 'politics') aShield = aPower;
+            else if (aCard.type === 'ideology') aHeal = aPower;
+
+            let finalDmgToAI = Math.max(0, pDmg - aShield);
+            let finalDmgToPlayer = Math.max(0, aDmg - pShield);
+
+            let logParts = [];
+            if (pDmg > 0) logParts.push(`你打出 ${pDmg} 傷害${aShield > 0 ? `(敵護盾抵銷 ${Math.min(pDmg, aShield)})` : ''}`);
+            if (pShield > 0) logParts.push(`你獲得 ${pShield} 護盾`);
+            if (pHeal > 0) logParts.push(`你恢復 ${pHeal} 民心`);
+
+            if (aDmg > 0) logParts.push(`敵造成 ${aDmg} 傷害${pShield > 0 ? `(你護盾抵銷 ${Math.min(aDmg, pShield)})` : ''}`);
+            if (aShield > 0) logParts.push(`敵獲得 ${aShield} 護盾`);
+            if (aHeal > 0) logParts.push(`敵恢復 ${aHeal} 民心`);
+
+            return { 
+                pDamageToAI: finalDmgToAI, 
+                aDamageToPlayer: finalDmgToPlayer, 
+                pHeal: pHeal, 
+                aHeal: aHeal, 
+                logMsg: logParts.join('；') || '雙方陣營僵持對峙。' 
+            };
+        }
+
+        // --- 出牌對決邏輯 ---
+        function playSelectedCard() {
+            if (gameState.selectedCardIndex === null) return;
+
+            const playerCard = gameState.playerHand[gameState.selectedCardIndex];
+            
+            if (playerCard.isSkill) {
+                gameState.playerEnergy = Math.max(0, gameState.playerEnergy - (playerCard.cost || 1));
+            }
+
+            gameState.playerHand.splice(gameState.selectedCardIndex, 1);
+            gameState.selectedCardIndex = null;
+
+            let aiCardIndex = Math.floor(Math.random() * gameState.aiHand.length);
+            const aiCard = gameState.aiHand.splice(aiCardIndex, 1)[0];
+
+            displayPlayedCard('player-played-card', playerCard);
+            displayPlayedCard('ai-played-card', aiCard);
+
+            const result = calculateDamage(playerCard, aiCard);
+
+            gameState.aiHp = Math.min(100, Math.max(0, gameState.aiHp - result.pDamageToAI + result.aHeal));
+            gameState.playerHp = Math.min(100, Math.max(0, gameState.playerHp - result.aDamageToPlayer + result.pHeal));
+
+            updateHpBar('player', gameState.playerHp);
+            updateHpBar('ai', gameState.aiHp);
+
+            document.getElementById('battle-log').innerHTML = result.logMsg;
+
+            gameState.playerEnergy = Math.min(gameState.maxEnergy, gameState.playerEnergy + 1);
+            document.getElementById('player-energy-text').innerText = `${gameState.playerEnergy}/${gameState.maxEnergy}`;
+
+            gameState.round++;
+            document.getElementById('round-counter').innerText = `第 ${gameState.round} 回合`;
+            triggerRandomHistoricalEvent();
+
+            if (gameState.playerHand.length <= 1) {
+                gameState.playerHand = buildDeck(gameState.playerFaction);
+            }
+            if (gameState.aiHand.length <= 1) {
+                gameState.aiHand = buildDeck(gameState.aiFaction);
+            }
+
+            renderPlayerHand();
+
+            setTimeout(() => {
+                checkGameOver();
+            }, 1000);
+        }
+
+        // --- 更新血條 UI ---
+        function updateHpBar(target, hp) {
+            const barEl = document.getElementById(`${target}-hp-bar`);
+            const textEl = document.getElementById(`${target}-hp-text`);
+            if (barEl && textEl) {
+                barEl.style.width = `${Math.max(0, hp)}%`;
+                textEl.innerText = `${Math.max(0, hp)} / 100`;
+            }
+        }
+
+        // --- 勝負判定 ---
+        function checkGameOver() {
+            if (gameState.playerHp <= 0 || gameState.aiHp <= 0) {
+                const isPlayerWin = (gameState.aiHp <= 0 && gameState.playerHp > 0);
+                const currentEraKey = gameState.currentEra;
+                const playerFaction = gameState.playerFaction;
+                
+                let isHistoricalOutcome = false;
+                if (playerFaction.isHistoricalWinner) {
+                    isHistoricalOutcome = isPlayerWin;
+                } else {
+                    isHistoricalOutcome = !isPlayerWin;
+                }
+
+                const endingKey = `${currentEraKey}_${isHistoricalOutcome ? 'historical' : 'alternate'}`;
+                const ending = ENDINGS[endingKey] || ENDINGS['era1_historical'];
+
+                document.getElementById('result-icon').innerText = ending.icon;
+                document.getElementById('result-title').innerText = ending.title;
+                document.getElementById('result-type').innerText = `【 ${ending.type} 】`;
+                document.getElementById('result-description').innerText = ending.desc;
+                document.getElementById('result-dse-note').innerHTML = `<i class="fa-solid fa-graduation-cap text-amber-400"></i> <strong>DSE 中史考點關鍵點評：</strong><br><span class="text-amber-200/90">${ending.dseNote}</span>`;
+
+                modalResult.classList.remove('hidden');
+            }
+        }
+
+        // --- 重置遊戲 ---
+        function resetGame() {
+            modalResult.classList.add('hidden');
+            sceneBattle.classList.add('hidden');
+            btnRestart.classList.add('hidden');
+            sceneFactionSelect.classList.remove('hidden');
+        }
+
+        // --- 綁定事件監聽器 ---
+        btnRules.onclick = () => modalRules.classList.remove('hidden');
+        btnCloseRules.onclick = () => modalRules.classList.add('hidden');
+        btnRestart.onclick = () => resetGame();
+
+        // --- 頁面加載完成初始化 ---
+        window.onload = function() {
+            changeEra('era1');
+        };
+    </script>
+</body>
+</html>
