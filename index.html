@@ -83,187 +83,215 @@
         }
     </style>
 
-    <!-- Firebase SDK (ES Module) -->
+    <!-- PeerJS 跨裝置 P2P 連線引擎 (零設定，無需 Firebase/後端伺服器) -->
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, getDoc, updateDoc, onSnapshot, collection, getDocs, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-        // 全局配置與應用 ID 讀取 (支援 GitHub Pages 等獨立託管環境)
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'history-card-game';
-        const firebaseConfig = (typeof __firebase_config !== 'undefined' && __firebase_config) ? JSON.parse(__firebase_config) : {
-            apiKey: "AIzaSyDummyKeyForGitHubPagesFallback12345",
-            authDomain: "history-card-game.firebaseapp.com",
-            projectId: "history-card-game"
-        };
-
-        let app, db, auth;
-        try {
-            app = initializeApp(firebaseConfig);
-            db = getFirestore(app);
-            auth = getAuth(app);
-        } catch (e) {
-            console.warn("Firebase 初始化警告 (GitHub Pages 環境可能缺少真實配置):", e);
-        }
-
-        window.firebaseApp = app;
-        window.firebaseDb = db;
-        window.firebaseAuth = auth;
+        const appId = 'history-card-game';
         window.appId = appId;
 
-        // 將 Firestore 函數掛載至 window 物件，供全域腳本使用
-        window.firestore = {
-            doc, setDoc, getDoc, updateDoc, onSnapshot, collection, getDocs, deleteDoc
-        };
-
-        // 全域 PeerJS 跨裝置通訊通道 (GitHub Pages 免設定連線引擎)
+        // ============================================================
+        // PeerEngine：封裝 PeerJS 的 P2P 連線管理
+        // Host 作為權威伺服器，Guest 發送操作請求，Host 結算後廣播狀態
+        // ============================================================
         window.peerEngine = {
             peer: null,
             conn: null,
             isHost: false,
+            connected: false,
+            onDataCallback: null,
+            onStatusCallback: null,
 
+            // 前綴避免與其他 PeerJS 應用衝突
+            _peerIdPrefix: 'hcg2025-',
+
+            // 回報連線狀態變更（供 UI 顯示）
+            _reportStatus(status, msg) {
+                console.log(`[PeerEngine] ${status}: ${msg || ''}`);
+                if (this.onStatusCallback) this.onStatusCallback(status, msg);
+            },
+
+            // 內部統一處理連線 data channel 事件
+            _bindConn(conn) {
+                conn.on('data', (data) => {
+                    console.log('[PeerEngine] 收到資料:', data?.type);
+                    if (this.onDataCallback) this.onDataCallback(data);
+                });
+                conn.on('close', () => {
+                    console.log('[PeerEngine] 連線已關閉');
+                    this.connected = false;
+                    this.conn = null;
+                    this._reportStatus('disconnected', '對手已斷線');
+                    if (window.onPeerDisconnected) window.onPeerDisconnected();
+                });
+                conn.on('error', (err) => {
+                    console.error('[PeerEngine] 連線通道錯誤:', err);
+                    this._reportStatus('error', '連線錯誤: ' + (err.message || err.type || err));
+                });
+            },
+
+            // ===== Host 模式：建立房間，等待 Guest 連入 =====
             initHost(roomId, onDataReceived) {
                 if (typeof Peer === 'undefined') {
-                    console.warn("[PeerEngine] PeerJS 未載入，改用雲端廣播通道。");
+                    this._reportStatus('error', 'PeerJS 未載入，無法建立連線');
                     return;
                 }
+                this._cleanup();
+                this.isHost = true;
+                this.onDataCallback = onDataReceived;
+                this.connected = false;
+
+                const hostPeerId = this._peerIdPrefix + roomId;
+                this._reportStatus('connecting', '正在建立房間通道...');
+
                 try {
-                    if (this.peer) this.peer.destroy();
-                    const hostPeerId = `hist_room_${roomId}`;
-                    this.peer = new Peer(hostPeerId);
-                    this.isHost = true;
+                    this.peer = new Peer(hostPeerId, { debug: 1 });
 
                     this.peer.on('open', (id) => {
-                        console.log("[PeerEngine] 房主通道已成功開通, ID:", id);
+                        this._reportStatus('waiting', '房間已建立，等待對手加入...');
                     });
 
                     this.peer.on('connection', (connection) => {
+                        // 若已有舊連線，拒絕重複連入
+                        if (this.conn && this.conn.open) {
+                            connection.close();
+                            return;
+                        }
                         this.conn = connection;
-                        console.log("[PeerEngine] 訪客已連線進來！");
-                        
-                        this.conn.on('data', (data) => {
-                            if (onDataReceived) onDataReceived(data);
+                        this._bindConn(connection);
+
+                        connection.on('open', () => {
+                            this.connected = true;
+                            this._reportStatus('connected', '對手已成功連線！');
+                            if (window.onPeerConnected) window.onPeerConnected();
                         });
                     });
 
                     this.peer.on('error', (err) => {
-                        console.warn("[PeerEngine] 房主通道提示:", err);
+                        console.error('[PeerEngine] Peer 錯誤:', err);
+                        const errType = err.type || '';
+                        if (errType === 'unavailable-id') {
+                            this._reportStatus('error', '房間號已被佔用，請重新建立');
+                        } else if (errType === 'network' || errType === 'server-error') {
+                            this._reportStatus('error', '網路問題，請檢查網路連線後重試');
+                        } else if (errType === 'browser-incompatible') {
+                            this._reportStatus('error', '目前瀏覽器不支援 P2P 連線');
+                        } else {
+                            this._reportStatus('error', '連線錯誤: ' + (err.message || errType));
+                        }
+                    });
+
+                    this.peer.on('disconnected', () => {
+                        this._reportStatus('reconnecting', '信令伺服器斷開，嘗試重連...');
+                        try { this.peer.reconnect(); } catch(e) {}
                     });
                 } catch (e) {
-                    console.warn("[PeerEngine] 初始化失敗:", e);
+                    this._reportStatus('error', '初始化失敗: ' + e.message);
                 }
             },
 
+            // ===== Guest 模式：連入 Host 房間 =====
             connectToHost(roomId, onDataReceived) {
                 if (typeof Peer === 'undefined') {
-                    console.warn("[PeerEngine] PeerJS 未載入，改用雲端廣播通道。");
-                    return;
+                    this._reportStatus('error', 'PeerJS 未載入，無法建立連線');
+                    return false;
                 }
+                this._cleanup();
+                this.isHost = false;
+                this.onDataCallback = onDataReceived;
+                this.connected = false;
+
+                const hostPeerId = this._peerIdPrefix + roomId;
+                this._reportStatus('connecting', '正在連線至房間...');
+
                 try {
-                    if (this.peer) this.peer.destroy();
-                    this.peer = new Peer();
-                    this.isHost = false;
+                    this.peer = new Peer({ debug: 1 });
 
-                    const hostPeerId = `hist_room_${roomId}`;
+                    this.peer.on('open', (myId) => {
+                        this._reportStatus('connecting', '正在連接至房主...');
+                        const conn = this.peer.connect(hostPeerId, { reliable: true });
+                        this.conn = conn;
+                        this._bindConn(conn);
 
-                    this.peer.on('open', () => {
-                        console.log("[PeerEngine] 連線至房主:", hostPeerId);
-                        this.conn = this.peer.connect(hostPeerId);
-
-                        this.conn.on('open', () => {
-                            console.log("[PeerEngine] 成功建立跨裝置直連通道！");
+                        conn.on('open', () => {
+                            this.connected = true;
+                            this._reportStatus('connected', '成功連線至房間！');
                             if (window.onPeerConnected) window.onPeerConnected();
                         });
 
-                        this.conn.on('data', (data) => {
-                            if (onDataReceived) onDataReceived(data);
-                        });
-
-                        this.conn.on('error', (err) => {
-                            console.error("[PeerEngine] 連線錯誤:", err);
-                        });
+                        // 連接超時檢測
+                        const timeout = setTimeout(() => {
+                            if (!this.connected) {
+                                this._reportStatus('error', '連線逾時，請確認房間號正確或房間仍在等待中');
+                                this._cleanup();
+                            }
+                        }, 10000);
+                        conn.on('open', () => clearTimeout(timeout));
                     });
-                } catch(e) {
-                    console.warn("[PeerEngine] 連線初始化失敗:", e);
+
+                    this.peer.on('error', (err) => {
+                        console.error('[PeerEngine] Peer 錯誤:', err);
+                        const errType = err.type || '';
+                        if (errType === 'peer-unavailable') {
+                            this._reportStatus('error', '找不到該房間，請確認房間號碼無誤');
+                        } else if (errType === 'network' || errType === 'server-error') {
+                            this._reportStatus('error', '網路問題，請檢查網路連線後重試');
+                        } else {
+                            this._reportStatus('error', '連線錯誤: ' + (err.message || errType));
+                        }
+                    });
+
+                    this.peer.on('disconnected', () => {
+                        this._reportStatus('reconnecting', '信令伺服器斷開，嘗試重連...');
+                        try { this.peer.reconnect(); } catch(e) {}
+                    });
+
+                    return true;
+                } catch (e) {
+                    this._reportStatus('error', '初始化失敗: ' + e.message);
+                    return false;
                 }
             },
 
+            // 發送資料
             send(data) {
                 if (this.conn && this.conn.open) {
-                    this.conn.send(data);
-                }
-            }
-        };
-
-        // 免權限 public 信令輪詢備份 (確保 GitHub Pages 萬無一失)
-        window.publicRelay = {
-            interval: null,
-            async postState(roomId, data) {
-                try {
-                    const db = window.firebaseDb;
-                    if (db && window.firestore) {
-                        const { doc, setDoc } = window.firestore;
-                        const roomRef = doc(db, 'artifacts', window.appId, 'public', 'data', 'rooms', roomId);
-                        await setDoc(roomRef, data);
+                    try {
+                        this.conn.send(data);
+                        return true;
+                    } catch (e) {
+                        console.error('[PeerEngine] 發送失敗:', e);
+                        return false;
                     }
-                } catch(e) {
-                    // Fallback to localStorage for single-device multi-tab testing
-                    localStorage.setItem(`hist_room_${roomId}`, JSON.stringify(data));
                 }
+                console.warn('[PeerEngine] 連線未就緒，無法發送');
+                return false;
             },
-            async getState(roomId) {
-                try {
-                    const db = window.firebaseDb;
-                    if (db && window.firestore) {
-                        const { doc, getDoc } = window.firestore;
-                        const roomRef = doc(db, 'artifacts', window.appId, 'public', 'data', 'rooms', roomId);
-                        const snap = await getDoc(roomRef);
-                        if (snap.exists()) return snap.data();
-                    }
-                } catch(e) {}
-                const local = localStorage.getItem(`hist_room_${roomId}`);
-                return local ? JSON.parse(local) : null;
+
+            // 清理資源
+            _cleanup() {
+                if (this.conn) {
+                    try { this.conn.close(); } catch(e) {}
+                    this.conn = null;
+                }
+                if (this.peer) {
+                    try { this.peer.destroy(); } catch(e) {}
+                    this.peer = null;
+                }
+                this.connected = false;
+            },
+
+            destroy() {
+                this._cleanup();
+                this.onDataCallback = null;
+                this.onStatusCallback = null;
+                this.isHost = false;
             }
         };
 
-        // Firebase 登入與初始化 (具備 GitHub Pages 超時與防護機制)
-        window.initFirebaseAuth = async function() {
-            if (!auth) return null;
-            if (auth.currentUser) return auth.currentUser;
-
-            return new Promise((resolve) => {
-                // 設定 2.5 秒超時防護，防止 GitHub 上因網絡連線卡死
-                const timeoutId = setTimeout(() => {
-                    console.warn("Firebase Auth 驗證超時，啟動降級模式以保障遊玩體感。");
-                    resolve(null);
-                }, 2500);
-
-                const authToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-                const unsubscribe = onAuthStateChanged(auth, async (user) => {
-                    clearTimeout(timeoutId);
-                    unsubscribe();
-                    if (user) {
-                        window.currentUser = user;
-                        resolve(user);
-                    } else {
-                        try {
-                            if (authToken) {
-                                const res = await signInWithCustomToken(auth, authToken);
-                                window.currentUser = res.user;
-                                resolve(res.user);
-                            } else {
-                                const res = await signInAnonymously(auth);
-                                window.currentUser = res.user;
-                                resolve(res.user);
-                            }
-                        } catch (err) {
-                            console.error("Firebase Auth Error:", err);
-                            resolve(null);
-                        }
-                    }
-                });
-            });
-        };
+        // 空殼：保留介面相容性（不再使用 Firebase）
+        window.firebaseDb = null;
+        window.firebaseAuth = null;
+        window.firestore = null;
+        window.initFirebaseAuth = async function() { return null; };
     </script>
 </head>
 <body class="min-h-screen flex flex-col justify-between overflow-x-hidden">
@@ -324,9 +352,15 @@
                     <button onclick="window.showModeSelect()" class="text-xs text-stone-400 hover:text-amber-400"><i class="fa-solid fa-arrow-left"></i> 返回</button>
                 </div>
 
+                <!-- 連線狀態提示 -->
+                <div id="pvp-status-banner" class="hidden mb-4 bg-stone-900 border border-amber-700/50 rounded-xl px-4 py-3 text-center">
+                    <div id="pvp-status-icon" class="inline-block text-2xl mr-2"><i class="fa-solid fa-spinner fa-spin text-amber-400"></i></div>
+                    <span id="pvp-status-text" class="text-sm text-amber-300 font-bold">連線中...</span>
+                </div>
+
                 <!-- 輸入房間號加入 -->
                 <div class="flex gap-2 mb-6">
-                    <input type="text" id="input-room-id" placeholder="輸入 6 位數房間邀請碼..." class="flex-1 bg-stone-900 border border-stone-700 rounded-xl px-3 py-2 text-xs text-stone-200 uppercase focus:outline-none focus:border-amber-500">
+                    <input type="text" id="input-room-id" placeholder="輸入 6 位數房間邀請碼..." class="flex-1 bg-stone-900 border border-stone-700 rounded-xl px-3 py-2 text-xs text-stone-200 uppercase focus:outline-none focus:border-amber-500" maxlength="6">
                     <button onclick="window.joinRoomById()" class="bg-amber-600 hover:bg-amber-500 text-stone-950 font-bold px-4 py-2 rounded-xl text-xs border border-amber-400 transition">加入房間</button>
                 </div>
 
@@ -335,17 +369,45 @@
                     <i class="fa-solid fa-plus-circle"></i> 建立全新歷史對戰房間
                 </button>
 
-                <!-- 房間大廳列表 -->
-                <div class="text-xs font-bold text-stone-400 mb-2 flex justify-between items-center">
-                    <span>當前等待中的公開房間</span>
-                    <div class="flex gap-2">
-                        <button onclick="window.cleanupOldRooms()" class="text-red-400 hover:underline"><i class="fa-solid fa-trash-can"></i> 清理殘留房間</button>
-                        <button onclick="window.fetchRoomList()" class="text-amber-500 hover:underline"><i class="fa-solid fa-rotate-right"></i> 重新整理</button>
+                <!-- 單機雙人測試提示 -->
+                <div class="mb-4 bg-blue-950/30 border border-blue-800/40 rounded-xl px-3 py-2 text-xs text-blue-300/80">
+                    <i class="fa-solid fa-circle-info"></i> <strong>連線說明：</strong>本遊戲採用 P2P 直連技術，建立房間後請將 6 位數邀請碼分享給朋友，對方輸入即可連線對戰。需雙方均在線上才能連線成功。
+                </div>
+            </div>
+        </section>
+
+        <!-- 畫面 0.6: PVP 等待對手畫面 -->
+        <section id="scene-pvp-waiting" class="hidden flex-1 flex flex-col justify-center items-center py-6">
+            <div class="w-full max-w-md bg-stone-950 border border-stone-800 rounded-2xl p-6 md:p-8 shadow-xl text-center">
+                <div class="mb-4">
+                    <div class="inline-block text-5xl mb-3 animate-pulse">⚔️</div>
+                    <h2 class="font-serif-tc text-xl font-bold text-amber-400 mb-2">房間已建立！</h2>
+                    <p class="text-xs text-stone-400 mb-4">將以下邀請碼分享給您的朋友，即可開始線上對戰</p>
+                </div>
+
+                <!-- 房間號碼展示 -->
+                <div class="bg-stone-900 border-2 border-amber-600/50 rounded-xl py-4 px-3 mb-4">
+                    <div class="text-[10px] text-stone-500 mb-1">您的房間邀請碼</div>
+                    <div id="waiting-room-code" class="text-3xl font-black text-amber-400 tracking-widest font-mono">------</div>
+                </div>
+
+                <!-- 複製按鈕 -->
+                <button onclick="window.copyRoomCode()" class="w-full bg-stone-800 hover:bg-stone-700 text-amber-300 text-xs font-bold py-2 rounded-xl border border-stone-700 transition mb-4">
+                    <i class="fa-solid fa-copy"></i> 複製邀請碼
+                </button>
+
+                <!-- 連線狀態 -->
+                <div class="bg-stone-900 rounded-xl px-3 py-2.5 mb-4">
+                    <div class="flex items-center justify-center gap-2 text-xs">
+                        <i class="fa-solid fa-spinner fa-spin text-amber-400"></i>
+                        <span id="waiting-status-text" class="text-amber-300">等待對手加入...</span>
                     </div>
                 </div>
-                <div id="room-list-container" class="space-y-2 max-h-48 overflow-y-auto pr-1">
-                    <div class="text-center py-6 text-stone-500 text-xs">正在載入房間列表...</div>
-                </div>
+
+                <!-- 取消按鈕 -->
+                <button onclick="window.cancelRoomWait()" class="w-full text-stone-500 hover:text-red-400 text-xs py-2 transition">
+                    <i class="fa-solid fa-xmark"></i> 取消建立，返回大廳
+                </button>
             </div>
         </section>
 
@@ -603,10 +665,13 @@
             currentEnvEvent: null,
             hasExtraTurn: false,
             isGameOver: false,
-            roomUnsubscribe: null,
-            isReadyThisRound: false, // PVP 同步鎖定標記
-            resolvedPvpRound: 0,     // 防止重複處理同一輪的標記
-            lastStateTime: 0         // 防止舊資料覆蓋新狀態的微秒時間戳
+            // PVP 同步相關
+            isReadyThisRound: false,      // 我方本回合是否已鎖定出牌
+            pvpExtraTurnCard: null,        // PVP 連動決議暫存的第一張牌
+            pvpChosenCard: null,           // 我方選定的卡牌（發送給 Host）
+            pvpOpponentConnected: false,   // 對手是否已連線
+            pvpBattleInited: false,        // PVP 戰鬥畫面是否已初始化
+            pvpStateVersion: 0             // 狀態版本號（防重複處理）
         };
 
         // 時期簡介
@@ -894,17 +959,20 @@
                 document.getElementById('scene-pvp-lobby').classList.remove('hidden');
                 document.getElementById('opponent-badge').innerText = "玩家2";
                 if (modeLabel) modeLabel.innerText = "雙人線上對戰 (PVP)";
-                window.fetchRoomList();
             }
         };
 
         window.showModeSelect = function() {
-            window.leaveCurrentRoom(); // 退出時清理雲端房間
+            window.leaveCurrentRoom();
+            document.getElementById('scene-pvp-waiting').classList.add('hidden');
             document.getElementById('scene-pvp-lobby').classList.add('hidden');
             document.getElementById('scene-faction-select').classList.add('hidden');
             document.getElementById('scene-battle').classList.add('hidden');
             document.getElementById('scene-mode-select').classList.remove('hidden');
             document.getElementById('btn-restart').classList.add('hidden');
+            // 隱藏 PVP 戰鬥中的特殊 UI
+            document.getElementById('pvp-room-code-tag').classList.add('hidden');
+            document.getElementById('pvp-readiness-indicator').classList.add('hidden');
         };
 
         // 重置遊戲主介面
@@ -912,61 +980,39 @@
             window.gameState.isGameOver = false;
             window.gameState.isReadyThisRound = false;
             window.gameState.selectedCardIndex = null;
+            window.gameState.pvpChosenCard = null;
+            window.gameState.pvpExtraTurnCard = null;
             document.getElementById('modal-result').classList.add('hidden');
             window.showModeSelect();
         };
 
-        // 獲取房間列表 (修復 window.fetchRoomList 未定義之錯誤)
-        window.fetchRoomList = async function() {
-            const container = document.getElementById('room-list-container');
-            if (!container) return;
+        // PVP 模式：顯示大廳狀態提示
+        window.showPvpStatus = function(text, type) {
+            const banner = document.getElementById('pvp-status-banner');
+            const iconEl = document.getElementById('pvp-status-icon');
+            const textEl = document.getElementById('pvp-status-text');
+            if (!banner || !iconEl || !textEl) return;
+            banner.classList.remove('hidden');
+            textEl.innerText = text;
+            const icons = {
+                connecting: '<i class="fa-solid fa-spinner fa-spin text-amber-400"></i>',
+                waiting: '<i class="fa-solid fa-clock text-amber-400"></i>',
+                connected: '<i class="fa-solid fa-circle-check text-green-400"></i>',
+                error: '<i class="fa-solid fa-circle-exclamation text-red-400"></i>'
+            };
+            iconEl.innerHTML = icons[type] || icons.connecting;
+        };
 
-            container.innerHTML = `<div class="text-center py-6 text-stone-500 text-xs"><i class="fa-solid fa-spinner fa-spin"></i> 正在載入歷史對戰房間...</div>`;
-
-            const db = window.firebaseDb;
-            if (!db || !window.firestore) {
-                container.innerHTML = `<div class="text-center py-4 text-amber-500 text-xs">請直接在上方輸入朋友給您的 6 位數房間邀請碼加入，或點擊下方按鈕建立全新房間。</div>`;
-                return;
-            }
-
-            try {
-                const { collection, getDocs } = window.firestore;
-                const colRef = collection(db, 'artifacts', window.appId, 'public', 'data', 'rooms');
-                const snapshot = await getDocs(colRef);
-
-                let html = '';
-                let count = 0;
-
-                snapshot.forEach((docSnap) => {
-                    const data = docSnap.data();
-                    if (data && data.status === 'waiting') {
-                        count++;
-                        html += `
-                            <div class="bg-stone-900 border border-stone-800 hover:border-amber-500 rounded-xl p-3 flex justify-between items-center transition">
-                                <div>
-                                    <div class="flex items-center gap-2">
-                                        <span class="font-bold text-amber-400 text-xs">房間 #${data.roomId}</span>
-                                        <span class="text-[10px] bg-amber-950 text-amber-300 px-1.5 py-0.5 rounded border border-amber-800">${data.host?.name || '未知陣營'}</span>
-                                    </div>
-                                    <span class="text-[10px] text-stone-400">時期: ${window.ERA_DESCRIPTIONS[data.era]?.split('】')[0] + '】' || '未知時期'}</span>
-                                </div>
-                                <button onclick="window.joinRoom('${data.roomId}')" class="bg-amber-600 hover:bg-amber-500 text-stone-950 font-bold px-3 py-1.5 rounded-lg text-xs transition">
-                                    加入對決
-                                </button>
-                            </div>
-                        `;
-                    }
-                });
-
-                if (count === 0) {
-                    container.innerHTML = `<div class="text-center py-6 text-stone-500 text-xs">目前暫無公開等待中的房間，您可以點擊下方建立全新房間！</div>`;
-                } else {
-                    container.innerHTML = html;
-                }
-            } catch (err) {
-                console.warn("無法查詢公開房間列表:", err);
-                container.innerHTML = `<div class="text-center py-4 text-stone-400 text-xs">請輸入 6 位數邀請碼直接加入房間，或點擊下方按鈕建立房間。</div>`;
-            }
+        // 離開或關閉當前房間
+        window.leaveCurrentRoom = function() {
+            window.peerEngine.destroy();
+            window.gameState.roomId = null;
+            window.gameState.pvpOpponentConnected = false;
+            window.gameState.pvpBattleInited = false;
+            window.gameState.isReadyThisRound = false;
+            window.gameState.pvpChosenCard = null;
+            window.gameState.pvpExtraTurnCard = null;
+            window.gameState.pvpStateVersion = 0;
         };
 
         // 選擇/切換手牌 (修復卡牌點擊選取功能)
@@ -999,58 +1045,7 @@
             window.logMessage("消耗 1 點能量，重新抽取了 5 張手牌！");
         };
 
-        // 離開或刪除當前房間
-        window.leaveCurrentRoom = async function() {
-            if (window.gameState.roomUnsubscribe) {
-                window.gameState.roomUnsubscribe();
-                window.gameState.roomUnsubscribe = null;
-            }
-
-            if (window.gameState.roomId) {
-                const roomId = window.gameState.roomId;
-                window.gameState.roomId = null;
-
-                try {
-                    const db = window.firebaseDb;
-                    if (db && window.firestore) {
-                        const { doc, deleteDoc } = window.firestore;
-                        const roomRef = doc(db, 'artifacts', window.appId, 'public', 'data', 'rooms', roomId);
-                        await deleteDoc(roomRef);
-                        console.log(`[PVP] 房間 #${roomId} 已成功清理。`);
-                    }
-                } catch (e) {
-                    console.warn("清理房間失敗 (可能已關閉):", e);
-                }
-            }
-        };
-
-        // 一鍵清理所有舊/過期殘留房間
-        window.cleanupOldRooms = async function() {
-            await window.initFirebaseAuth();
-            const db = window.firebaseDb;
-            if (!db || !window.firestore) return;
-            const { collection, getDocs, deleteDoc, doc } = window.firestore;
-
-            try {
-                const colRef = collection(db, 'artifacts', window.appId, 'public', 'data', 'rooms');
-                const snapshot = await getDocs(colRef);
-                let count = 0;
-                
-                const deletePromises = [];
-                snapshot.forEach((docSnap) => {
-                    count++;
-                    const ref = doc(db, 'artifacts', window.appId, 'public', 'data', 'rooms', docSnap.id);
-                    deletePromises.push(deleteDoc(ref));
-                });
-
-                await Promise.all(deletePromises);
-                alert(`已成功清理 ${count} 個歷史殘留房間！現在列表乾淨了。`);
-                window.fetchRoomList();
-            } catch (err) {
-                console.error("清理殘留房間失敗:", err);
-                alert("清理房間時出錯，請刷新頁面再試。");
-            }
-        };
+        // (舊的 leaveCurrentRoom 和 cleanupOldRooms 已移除，改由上方新版實作)
 
         // 切換歷史時期
         window.changeEra = function(eraKey) {
@@ -1187,7 +1182,11 @@
             }
         };
 
-        // PVP 雲端對戰邏輯
+        // ============================================================
+        // PVP 線上對戰核心邏輯（純 PeerJS P2P，Host 為權威伺服器）
+        // ============================================================
+
+        // 建立房間：進入陣營選擇畫面
         window.openCreateRoomModal = function() {
             window.gameState.mode = 'pvp_create';
             document.getElementById('scene-pvp-lobby').classList.add('hidden');
@@ -1195,18 +1194,38 @@
             window.changeEra('era1');
         };
 
-        window.createPvpRoomWithFaction = async function(faction) {
+        // Host 選好陣營後建立房間
+        window.createPvpRoomWithFaction = function(faction) {
             const roomId = Math.floor(100000 + Math.random() * 900000).toString();
             window.gameState.roomId = roomId;
             window.gameState.playerRole = 'host';
             window.gameState.playerFaction = faction;
-            window.gameState.resolvedPvpRound = 0;
+            window.gameState.mode = 'pvp';
 
+            // 隨機環境事件
             const envs = window.ERA_HISTORICAL_EVENTS[window.gameState.currentEra];
             const currentEnv = envs[Math.floor(Math.random() * envs.length)];
             window.gameState.currentEnvEvent = currentEnv;
 
-            const roomData = {
+            // 初始化遊戲狀態
+            window.gameState.playerHp = 100;
+            window.gameState.aiHp = 100;
+            window.gameState.playerEnergy = 2;
+            window.gameState.playerPolitics = null;
+            window.gameState.aiPolitics = null;
+            window.gameState.isPlayerStunned = false;
+            window.gameState.isAiStunned = false;
+            window.gameState.round = 1;
+            window.gameState.isGameOver = false;
+            window.gameState.isReadyThisRound = false;
+            window.gameState.pvpChosenCard = null;
+            window.gameState.pvpExtraTurnCard = null;
+            window.gameState.pvpOpponentConnected = false;
+            window.gameState.pvpBattleInited = false;
+            window.gameState.pvpStateVersion = 0;
+
+            // 建立權威遊戲資料（Host 端維護）
+            window.gameState.pvpRoomData = {
                 roomId: roomId,
                 era: window.gameState.currentEra,
                 env: currentEnv,
@@ -1216,275 +1235,485 @@
                     name: faction.name,
                     avatar: faction.avatar,
                     tag: faction.tag,
+                    id: faction.id,
                     hp: 100,
                     energy: 2,
                     politics: null,
                     chosenCard: null,
-                    isReady: false
+                    isReady: false,
+                    isStunned: false
                 },
                 guest: null,
-                lastAction: '房間已建立，等待對手輸入 6 位數邀請碼加入...'
+                version: 0
             };
 
-            window.gameState.pvpRoomData = roomData;
+            // 顯示等待畫面
+            document.getElementById('waiting-room-code').innerText = roomId;
+            document.getElementById('scene-faction-select').classList.add('hidden');
+            document.getElementById('scene-pvp-waiting').classList.remove('hidden');
+            document.getElementById('btn-restart').classList.remove('hidden');
 
-            // 1. 初始化 PeerJS
-            window.peerEngine.initHost(roomId, (remoteData) => {
-                const currentData = window.gameState.pvpRoomData;
-                if (!currentData) return;
-
-                if (remoteData.type === 'GUEST_JOIN') {
-                    currentData.status = 'playing';
-                    currentData.guest = remoteData.guest;
-                    currentData.lastAction = `${remoteData.guest.name} 已成功進入房間！`;
-                    window.peerEngine.send({ type: 'SYNC_STATE', data: currentData });
-                    window.publicRelay.postState(roomId, currentData);
-                    if (window.handlePvpSyncData) window.handlePvpSyncData(currentData);
-                } else if (remoteData.type === 'GUEST_PLAY_CARD') {
-                    if (currentData.guest) {
-                        currentData.guest.isReady = true;
-                        currentData.guest.chosenCard = remoteData.chosenCard;
-                        if (remoteData.isStunned) currentData.host.isStunned = true;
-                    }
-                    window.peerEngine.send({ type: 'SYNC_STATE', data: currentData });
-                    window.publicRelay.postState(roomId, currentData);
-                    if (window.handlePvpSyncData) window.handlePvpSyncData(currentData);
+            // 設定 PeerJS Host
+            window.peerEngine.onStatusCallback = function(status, msg) {
+                const statusEl = document.getElementById('waiting-status-text');
+                if (statusEl) {
+                    const msgs = {
+                        connecting: '正在建立房間通道...',
+                        waiting: '等待對手加入...',
+                        connected: '對手已連線！正在進入對戰...',
+                        error: msg || '連線發生錯誤',
+                        disconnected: '對手已斷線',
+                        reconnecting: '正在重新連線...'
+                    };
+                    statusEl.innerText = msgs[status] || msg;
                 }
+                if (status === 'error') {
+                    alert(msg || '建立房間失敗，請重試');
+                }
+            };
+
+            window.peerEngine.initHost(roomId, (remoteData) => {
+                window.handleHostReceivedData(remoteData);
             });
-
-            // 2. 寫入公開廣播信令
-            await window.publicRelay.postState(roomId, roomData);
-
-            window.gameState.mode = 'pvp';
-            window.startPvpRoomListener(roomId);
         };
 
+        // Host 端處理 Guest 傳來的資料
+        window.handleHostReceivedData = function(remoteData) {
+            const data = window.gameState.pvpRoomData;
+            if (!data || !remoteData) return;
+
+            if (remoteData.type === 'GUEST_JOIN') {
+                if (data.guest) return; // 已有 Guest，忽略
+
+                data.guest = {
+                    name: remoteData.guest.name,
+                    avatar: remoteData.guest.avatar,
+                    tag: remoteData.guest.tag,
+                    id: remoteData.guest.id,
+                    hp: 100,
+                    energy: 2,
+                    politics: null,
+                    chosenCard: null,
+                    isReady: false,
+                    isStunned: false
+                };
+                data.status = 'playing';
+                data.version++;
+                data.lastAction = `${remoteData.guest.name} 已加入對決！`;
+
+                // 推送完整狀態給 Guest
+                window.peerEngine.send({ type: 'SYNC_STATE', data: data });
+                // 進入戰鬥畫面
+                window.enterPvpBattle(data);
+            } else if (remoteData.type === 'GUEST_PLAY_CARD') {
+                if (!data.guest) return;
+                data.guest.isReady = true;
+                data.guest.chosenCard = remoteData.chosenCard;
+                data.version++;
+                window.checkPvpRoundResolve();
+            } else if (remoteData.type === 'GUEST_LEAVE') {
+                window.logMessage("對手已離開房間");
+                if (!window.gameState.isGameOver) {
+                    window.gameState.pvpOpponentConnected = false;
+                    alert("對手已斷線，請返回大廳重新建立房間");
+                }
+            }
+        };
+
+        // Guest 加入房間
         window.joinRoomById = function() {
             const input = document.getElementById('input-room-id').value.trim();
-            if (input.length === 6) {
+            if (input.length === 6 && /^\d{6}$/.test(input)) {
                 window.joinRoom(input);
             } else {
-                alert("請輸入正確的 6 位數房間邀請碼！");
+                alert("請輸入正確的 6 位數字房間邀請碼！");
             }
         };
 
-        window.joinRoom = async function(roomId) {
+        window.joinRoom = function(roomId) {
             window.gameState.roomId = roomId;
             window.gameState.playerRole = 'guest';
-            window.gameState.resolvedPvpRound = 0;
+            window.gameState.mode = 'pvp';
+            window.gameState.isReadyThisRound = false;
+            window.gameState.pvpChosenCard = null;
+            window.gameState.pvpExtraTurnCard = null;
+            window.gameState.pvpOpponentConnected = false;
+            window.gameState.pvpBattleInited = false;
+            window.gameState.pvpStateVersion = 0;
 
-            // 讀取房間資料
-            let roomData = await window.publicRelay.getState(roomId);
+            // 顯示連線中狀態
+            window.showPvpStatus('正在連線至房間...', 'connecting');
 
-            const eraKey = (roomData && roomData.era) ? roomData.era : (window.gameState.currentEra || 'era1');
-            window.gameState.currentEra = eraKey;
-
-            const eraFactions = window.FACTION_DATA[eraKey].factions;
-            let guestFaction = eraFactions[1] || eraFactions[0];
-
-            if (roomData && roomData.host) {
-                guestFaction = eraFactions.find(f => f.id !== roomData.host.id) || eraFactions[1] || eraFactions[0];
-            }
-
-            window.gameState.playerFaction = guestFaction;
-
-            const guestObj = {
-                name: guestFaction.name,
-                avatar: guestFaction.avatar,
-                tag: guestFaction.tag,
-                hp: 100,
-                energy: 2,
-                politics: null,
-                chosenCard: null,
-                isReady: false
+            // 設定狀態回調
+            window.peerEngine.onStatusCallback = function(status, msg) {
+                window.showPvpStatus(msg || status, status);
+                if (status === 'error') {
+                    setTimeout(() => {
+                        const banner = document.getElementById('pvp-status-banner');
+                        if (banner) banner.classList.add('hidden');
+                    }, 3000);
+                }
             };
 
-            // 如果已有歷史資料，更新 state
-            if (roomData) {
-                roomData.status = 'playing';
-                roomData.guest = guestObj;
-                roomData.lastAction = `${guestFaction.name} 已成功加入對決！`;
-                await window.publicRelay.postState(roomId, roomData);
-            }
+            // 連線成功後發送 GUEST_JOIN
+            window.onPeerConnected = function() {
+                window.gameState.pvpOpponentConnected = true;
 
-            // 同時發送 Peer 訊號
-            window.onPeerConnected = () => {
-                window.peerEngine.send({
+                // Guest 需要先取得 Host 的時期和陣營資訊
+                // 使用一個臨時 faction，Host 收到後會發送完整狀態
+                const guestJoinData = {
                     type: 'GUEST_JOIN',
-                    guest: guestObj
-                });
+                    guest: {
+                        name: '挑戰者',
+                        avatar: '⚔️',
+                        tag: '玩家',
+                        id: 'guest_pending'
+                    }
+                };
+                window.peerEngine.send(guestJoinData);
             };
 
+            // 處理收到的同步資料
             window.peerEngine.connectToHost(roomId, (remoteData) => {
                 if (remoteData.type === 'SYNC_STATE') {
-                    if (window.handlePvpSyncData) window.handlePvpSyncData(remoteData.data);
+                    window.handleGuestSyncData(remoteData.data);
                 }
             });
-
-            window.gameState.mode = 'pvp';
-            window.startPvpRoomListener(roomId);
-
-            // 觸發一次狀態更新
-            if (roomData) window.handlePvpSyncData(roomData);
         };
 
-        window.startPvpRoomListener = function(roomId) {
+        // Guest 處理 Host 推送的完整狀態
+        window.handleGuestSyncData = function(data) {
+            if (!data || window.gameState.isGameOver) return;
+            if (data.version !== undefined && data.version <= window.gameState.pvpStateVersion) return;
+            if (data.version !== undefined) window.gameState.pvpStateVersion = data.version;
+
+            window.gameState.pvpRoomData = data;
+            window.gameState.pvpOpponentConnected = true;
+
+            // 同步基本資訊
+            if (data.era) window.gameState.currentEra = data.era;
+            if (data.env) {
+                window.gameState.currentEnvEvent = data.env;
+                document.getElementById('event-icon').innerText = data.env.icon;
+                document.getElementById('event-title').innerText = data.env.title;
+                document.getElementById('event-desc').innerText = data.env.desc;
+                document.getElementById('event-buff-tag').innerText = `效果提升 +${data.env.val}`;
+            }
+            if (data.round) window.gameState.round = data.round;
+
+            // Guest 的對手是 Host
+            const oppData = data.host;
+            const myData = data.guest;
+
+            // 首次收到完整遊戲資料（guest 存在且有 id）時，初始化戰鬥畫面
+            if (myData && myData.id && myData.id !== 'guest_pending' && !window.gameState.pvpBattleInited) {
+                window.gameState.pvpBattleInited = true;
+
+                // 初始化遊戲狀態
+                window.gameState.playerHp = myData.hp || 100;
+                window.gameState.aiHp = oppData.hp || 100;
+                window.gameState.playerEnergy = myData.energy || 2;
+                window.gameState.playerPolitics = myData.politics || null;
+                window.gameState.aiPolitics = oppData.politics || null;
+                window.gameState.isPlayerStunned = myData.isStunned || false;
+                window.gameState.isAiStunned = oppData.isStunned || false;
+                window.gameState.isGameOver = false;
+
+                // 設定陣營
+                const eraFactions = window.FACTION_DATA[data.era].factions;
+                const myFaction = eraFactions.find(f => f.id === myData.id);
+                if (myFaction) {
+                    window.gameState.playerFaction = myFaction;
+                    document.getElementById('player-name').innerText = myFaction.name;
+                    document.getElementById('player-avatar').innerText = myFaction.avatar;
+                    document.getElementById('player-faction-tag').innerText = myFaction.tag;
+                }
+                const oppFaction = eraFactions.find(f => f.id === oppData.id);
+                if (oppFaction) {
+                    window.gameState.aiFaction = oppFaction;
+                }
+
+                // 對手 UI
+                document.getElementById('ai-name').innerText = oppData.name;
+                document.getElementById('ai-avatar').innerText = oppData.avatar;
+                document.getElementById('ai-faction-tag').innerText = oppData.tag;
+
+                // 時期標籤
+                document.getElementById('battle-era-tag').innerText = window.ERA_DESCRIPTIONS[data.era].split('】')[0] + '】';
+
+                // 房間號標籤
+                document.getElementById('pvp-room-code-tag').innerText = `房間號: ${window.gameState.roomId}`;
+                document.getElementById('pvp-room-code-tag').classList.remove('hidden');
+                document.getElementById('pvp-readiness-indicator').classList.remove('hidden');
+
+                // 初始化手牌
+                window.gameState.playerHand = window.generateGuaranteedHand();
+
+                // 切換到戰鬥畫面
+                document.getElementById('scene-pvp-lobby').classList.add('hidden');
+                document.getElementById('scene-faction-select').classList.add('hidden');
+                document.getElementById('scene-pvp-waiting').classList.add('hidden');
+                document.getElementById('scene-battle').classList.remove('hidden');
+                document.getElementById('btn-restart').classList.remove('hidden');
+
+                // 隱藏大廳狀態提示
+                const banner = document.getElementById('pvp-status-banner');
+                if (banner) banner.classList.add('hidden');
+
+                window.logMessage("已連線至房間！對決開始，請選擇手牌打出。");
+            }
+
+            if (oppData) {
+                document.getElementById('ai-name').innerText = oppData.name;
+                document.getElementById('ai-avatar').innerText = oppData.avatar;
+                document.getElementById('ai-faction-tag').innerText = oppData.tag;
+                window.gameState.aiHp = oppData.hp;
+                window.gameState.aiPolitics = oppData.politics;
+                window.gameState.isAiStunned = oppData.isStunned || false;
+            }
+
+            // 同步我方狀態
+            if (myData) {
+                window.gameState.playerHp = myData.hp;
+                window.gameState.playerEnergy = myData.energy;
+                window.gameState.playerPolitics = myData.politics;
+                window.gameState.isPlayerStunned = myData.isStunned || false;
+                // 同步鎖定狀態：如果 Host 資料顯示我方未 ready，則重置本地鎖定
+                if (!myData.isReady && window.gameState.isReadyThisRound) {
+                    window.gameState.isReadyThisRound = false;
+                    window.gameState.pvpChosenCard = null;
+                }
+            }
+
+            // 更新 UI
+            window.updateUI();
+            window.renderHand();
+            window.updatePvpReadyStatus(data);
+
+            if (data.lastAction) window.logMessage(data.lastAction);
+
+            // 檢查遊戲結束
+            if (myData && oppData && (myData.hp <= 0 || oppData.hp <= 0)) {
+                if (!window.gameState.isGameOver) {
+                    window.gameState.isGameOver = true;
+                    setTimeout(() => window.showGameResult(), 400);
+                }
+            }
+        };
+
+        // 進入 PVP 戰鬥畫面（Host 端，Guest 連線後觸發）
+        window.enterPvpBattle = function(data) {
+            window.gameState.pvpOpponentConnected = true;
+
+            // 確定對手（Guest）的陣營：如果 Guest 沒有選擇，自動分配 Host 的對手陣營
+            const eraFactions = window.FACTION_DATA[data.era].factions;
+            let guestFaction = eraFactions.find(f => f.id === data.guest.id);
+            if (!guestFaction) {
+                // 自動分配為 Host 的敵方陣營
+                const hostFaction = eraFactions.find(f => f.id === data.host.id);
+                guestFaction = eraFactions.find(f => f.id === hostFaction.enemyId) || eraFactions.find(f => f.id !== data.host.id);
+
+                // 更新 guest 資料
+                data.guest.id = guestFaction.id;
+                data.guest.name = guestFaction.name;
+                data.guest.avatar = guestFaction.avatar;
+                data.guest.tag = guestFaction.tag;
+                data.version++;
+
+                // 推送更新給 Guest
+                window.peerEngine.send({ type: 'SYNC_STATE', data: data });
+            }
+
+            window.gameState.aiFaction = guestFaction;
+            window.gameState.aiHp = 100;
+            window.gameState.aiPolitics = null;
+            window.gameState.isAiStunned = false;
+
+            // 綁定 UI
+            document.getElementById('ai-name').innerText = guestFaction.name;
+            document.getElementById('ai-avatar').innerText = guestFaction.avatar;
+            document.getElementById('ai-faction-tag').innerText = guestFaction.tag;
+
+            document.getElementById('player-name').innerText = window.gameState.playerFaction.name;
+            document.getElementById('player-avatar').innerText = window.gameState.playerFaction.avatar;
+            document.getElementById('player-faction-tag').innerText = window.gameState.playerFaction.tag;
+
+            document.getElementById('battle-era-tag').innerText = window.ERA_DESCRIPTIONS[window.gameState.currentEra].split('】')[0] + '】';
+
+            // 環境事件
+            document.getElementById('event-icon').innerText = data.env.icon;
+            document.getElementById('event-title').innerText = data.env.title;
+            document.getElementById('event-desc').innerText = data.env.desc;
+            document.getElementById('event-buff-tag').innerText = `效果提升 +${data.env.val}`;
+
+            // 房間號標籤
+            document.getElementById('pvp-room-code-tag').innerText = `房間號: ${window.gameState.roomId}`;
+            document.getElementById('pvp-room-code-tag').classList.remove('hidden');
+            document.getElementById('pvp-readiness-indicator').classList.remove('hidden');
+
+            // 初始化手牌
+            window.gameState.playerHand = window.generateGuaranteedHand();
+
+            // 切換畫面
+            document.getElementById('scene-pvp-waiting').classList.add('hidden');
             document.getElementById('scene-pvp-lobby').classList.add('hidden');
             document.getElementById('scene-faction-select').classList.add('hidden');
             document.getElementById('scene-battle').classList.remove('hidden');
             document.getElementById('btn-restart').classList.remove('hidden');
 
-            document.getElementById('pvp-room-code-tag').innerText = `房間號: ${roomId}`;
-            document.getElementById('pvp-room-code-tag').classList.remove('hidden');
-            document.getElementById('pvp-readiness-indicator').classList.remove('hidden');
+            window.updateUI();
+            window.renderHand();
+            window.logMessage("對手已連線！對決開始，請選擇手牌打出。");
+        };
 
-            if (window.gameState.playerFaction) {
-                document.getElementById('player-name').innerText = window.gameState.playerFaction.name;
-                document.getElementById('player-avatar').innerText = window.gameState.playerFaction.avatar;
-                document.getElementById('player-faction-tag').innerText = window.gameState.playerFaction.tag;
+        // 更新 PVP 雙方出牌狀態指示
+        window.updatePvpReadyStatus = function(data) {
+            const isHost = window.gameState.playerRole === 'host';
+            const myData = isHost ? data.host : data.guest;
+            const oppData = isHost ? data.guest : data.host;
+
+            const isIReady = window.gameState.isReadyThisRound || (myData && myData.isReady);
+            const isOppReady = oppData && oppData.isReady;
+
+            const myIcon = isIReady
+                ? '<i class="fa-solid fa-check-circle text-green-400"></i> 我方：已鎖定出牌'
+                : '<i class="fa-solid fa-circle-notch fa-spin text-amber-400"></i> 我方：思考中';
+            const oppIcon = isOppReady
+                ? '<i class="fa-solid fa-check-circle text-green-400"></i> 對方：已鎖定出牌'
+                : '<i class="fa-solid fa-circle-notch fa-spin text-amber-400"></i> 對方：思考中';
+
+            document.getElementById('p1-ready-status').innerHTML = myIcon;
+            document.getElementById('p2-ready-status').innerHTML = oppIcon;
+        };
+
+        // Host 端檢查雙方是否都已出牌，若是則結算
+        window.checkPvpRoundResolve = function() {
+            const data = window.gameState.pvpRoomData;
+            if (!data || !data.host || !data.guest) return;
+            if (!data.host.isReady || !data.guest.isReady) return;
+            if (window.gameState.isGameOver) return;
+
+            // 確保只結算一次本回合（透過 version 號防重複）
+            if (data._resolvedVersion && data._resolvedVersion >= data.version) return;
+            data._resolvedVersion = data.version;
+
+            window.logMessage("⚔️ 雙方均已確定出牌！開始同步結算本輪對決...");
+
+            // 結算前先同步 Host 本地狀態
+            data.host.hp = window.gameState.playerHp;
+            data.host.energy = window.gameState.playerEnergy;
+            data.host.politics = window.gameState.playerPolitics;
+            data.host.isStunned = window.gameState.isPlayerStunned;
+
+            const hostCard = data.host.chosenCard;
+            const guestCard = data.guest.chosenCard;
+            const hostStunned = data.host.isStunned;
+            const guestStunned = data.guest.isStunned;
+
+            // 執行卡牌效果（Host 端為權威計算）
+            // 先執行我方（Host = player）
+            window.gameState.isPlayerStunned = hostStunned;
+            window.gameState.isAiStunned = guestStunned;
+
+            if (hostCard && !hostStunned) {
+                window.executeCardEffect(hostCard, 'player');
+            }
+            if (guestCard && !guestStunned) {
+                window.executeCardEffect(guestCard, 'ai');
             }
 
-            window.gameState.playerHand = window.generateGuaranteedHand();
+            if (hostStunned) window.logMessage("⚠️ 我方本回合受政治協定限制，無法行動！");
+            if (guestStunned) window.logMessage("✨ 對方本回合受政治協定限制，行動被封鎖！");
 
-            // 啟動定時輪詢監聽（保障跨區域/GitHub Pages 上 100% 同步）
-            if (window.publicRelay.interval) clearInterval(window.publicRelay.interval);
-            window.publicRelay.interval = setInterval(async () => {
-                if (window.gameState.isGameOver || window.gameState.mode !== 'pvp') {
-                    clearInterval(window.publicRelay.interval);
-                    return;
-                }
-                const latestData = await window.publicRelay.getState(roomId);
-                if (latestData && window.handlePvpSyncData) {
-                    window.handlePvpSyncData(latestData);
-                }
-            }, 1000);
+            window.updateUI();
 
-            // 統一狀態同步處理核心
-            window.handlePvpSyncData = async (data) => {
-                if (!data || window.gameState.isGameOver) return;
+            // 更新資料
+            data.host.hp = window.gameState.playerHp;
+            data.host.politics = window.gameState.playerPolitics;
+            data.guest.hp = window.gameState.aiHp;
+            data.guest.politics = window.gameState.aiPolitics;
 
-                // 防覆蓋機制：如果收到的數據時間戳比本地更新還舊，直接忽視
-                if (data.updatedAt && window.gameState.lastStateTime && data.updatedAt < window.gameState.lastStateTime) {
-                    return;
-                }
-                if (data.updatedAt) window.gameState.lastStateTime = data.updatedAt;
+            // 推送結算結果給 Guest
+            data.version++;
+            data.lastAction = `第 ${data.round} 回合結算完成！`;
+            window.peerEngine.send({ type: 'SYNC_STATE', data: data });
 
-                window.gameState.pvpRoomData = data;
+            // 檢查遊戲結束
+            if (data.host.hp <= 0 || data.guest.hp <= 0) {
+                window.gameState.isGameOver = true;
+                data.status = 'ended';
+                data.version++;
+                window.peerEngine.send({ type: 'SYNC_STATE', data: data });
+                setTimeout(() => window.showGameResult(), 800);
+                return;
+            }
 
-                const isHost = window.gameState.playerRole === 'host';
-                const myData = isHost ? data.host : data.guest;
-                const oppData = isHost ? data.guest : data.host;
+            // 延遲後開始新回合
+            setTimeout(() => {
+                if (window.gameState.isGameOver) return;
+                data.round++;
+                data.host.isReady = false;
+                data.host.chosenCard = null;
+                data.host.isStunned = false;
+                data.host.energy = Math.min(3, data.host.energy + 1);
+                data.guest.isReady = false;
+                data.guest.chosenCard = null;
+                data.guest.isStunned = false;
+                data.guest.energy = Math.min(3, data.guest.energy + 1);
+                data.lastAction = `第 ${data.round} 回合開始！請選擇手牌打出。`;
+                data.version++;
 
-                if (data.round) window.gameState.round = data.round;
+                // 同步 Host 本地狀態
+                window.gameState.round = data.round;
+                window.gameState.playerEnergy = data.host.energy;
+                window.gameState.isReadyThisRound = false;
+                window.gameState.pvpChosenCard = null;
 
-                if (data.env) {
-                    window.gameState.currentEnvEvent = data.env;
-                    document.getElementById('event-icon').innerText = data.env.icon;
-                    document.getElementById('event-title').innerText = data.env.title;
-                    document.getElementById('event-desc').innerText = data.env.desc;
-                    document.getElementById('event-buff-tag').innerText = `效果提升 +${data.env.val}`;
-                }
-
-                if (oppData) {
-                    document.getElementById('ai-name').innerText = oppData.name;
-                    document.getElementById('ai-avatar').innerText = oppData.avatar;
-                    document.getElementById('ai-faction-tag').innerText = oppData.tag;
-                }
-
-                if (data.status === 'waiting') {
-                    window.logMessage("等待對手輸入 6 位數邀請碼連線中...");
-                    return;
-                }
-
-                // 強制保持我方已鎖定狀態（防止被輪詢蓋掉）
-                const isIReady = window.gameState.isReadyThisRound || (myData && myData.isReady);
-                const isOppReady = oppData && oppData.isReady;
-
-                const myReadyIcon = isIReady ? '<i class="fa-solid fa-check-circle text-green-400"></i> 我方：已鎖定出牌' : '<i class="fa-solid fa-spinner fa-spin text-amber-400"></i> 我方：思考中';
-                const oppReadyIcon = isOppReady ? '<i class="fa-solid fa-check-circle text-green-400"></i> 對方：已鎖定出牌' : '<i class="fa-solid fa-spinner fa-spin text-amber-400"></i> 對方：思考中';
-                document.getElementById('p1-ready-status').innerHTML = myReadyIcon;
-                document.getElementById('p2-ready-status').innerHTML = oppReadyIcon;
-
-                // 雙方同時鎖定後的同步結算
-                if ((data.host && data.host.isReady) && (data.guest && data.guest.isReady) && window.gameState.resolvedPvpRound < data.round) {
-                    window.gameState.resolvedPvpRound = data.round;
-                    window.logMessage("⚔️ 雙方均已確定出牌！開始同步結算本輪對決效果...");
-
-                    const hostCard = data.host.chosenCard;
-                    const guestCard = data.guest.chosenCard;
-
-                    const myCard = isHost ? hostCard : guestCard;
-                    const oppCard = isHost ? guestCard : hostCard;
-
-                    const amIStunned = myData && myData.isStunned;
-                    const isOppStunned = oppData && oppData.isStunned;
-
-                    if (myCard && !amIStunned) window.executeCardEffect(myCard, 'player');
-                    if (oppCard && !isOppStunned) window.executeCardEffect(oppCard, 'ai');
-
-                    if (amIStunned) window.logMessage("⚠️ 你本回合受政治協定限制，無法行動！");
-                    if (isOppStunned) window.logMessage("✨ 對方本回合受政治協定限制，行動被封鎖！");
-
-                    window.updateUI();
-
-                    if (isHost) {
-                        setTimeout(async () => {
-                            if (window.gameState.isGameOver) return;
-                            const newRound = data.round + 1;
-                            data.round = newRound;
-                            data.updatedAt = Date.now();
-                            data.host.isReady = false;
-                            data.host.chosenCard = null;
-                            data.host.isStunned = false;
-                            data.host.energy = Math.min(3, data.host.energy + 1);
-                            data.host.hp = window.gameState.playerHp;
-                            data.host.politics = window.gameState.playerPolitics;
-
-                            data.guest.isReady = false;
-                            data.guest.chosenCard = null;
-                            data.guest.isStunned = false;
-                            data.guest.energy = Math.min(3, data.guest.energy + 1);
-                            data.guest.hp = window.gameState.aiHp;
-                            data.guest.politics = window.gameState.aiPolitics;
-                            data.lastAction = `第 ${newRound} 回合開始！請選擇本輪手牌打出。`;
-
-                            window.peerEngine.send({ type: 'SYNC_STATE', data: data });
-                            await window.publicRelay.postState(roomId, data);
-                            window.handlePvpSyncData(data);
-                        }, 1200);
-                    }
-
-                    window.gameState.isReadyThisRound = false;
-                    return;
-                }
-
-                if (data.lastAction) window.logMessage(data.lastAction);
-
-                if (myData) {
-                    window.gameState.playerHp = myData.hp;
-                    window.gameState.playerEnergy = myData.energy;
-                    window.gameState.playerPolitics = myData.politics;
-                }
-
-                if (oppData) {
-                    window.gameState.aiHp = oppData.hp;
-                    window.gameState.aiPolitics = oppData.politics;
-                }
-
+                window.peerEngine.send({ type: 'SYNC_STATE', data: data });
                 window.updateUI();
                 window.renderHand();
+                window.updatePvpReadyStatus(data);
+                window.logMessage(data.lastAction);
+            }, 1500);
+        };
 
-                if (myData && oppData && (myData.hp <= 0 || oppData.hp <= 0)) {
-                    if (!window.gameState.isGameOver) {
-                        window.gameState.isGameOver = true;
-                        setTimeout(() => window.showGameResult(), 400);
+        // 複製房間碼
+        window.copyRoomCode = function() {
+            const code = window.gameState.roomId;
+            if (!code) return;
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(code).then(() => {
+                    alert(`房間邀請碼 ${code} 已複製到剪貼簿！`);
+                }).catch(() => {
+                    alert(`房間邀請碼：${code}`);
+                });
+            } else {
+                alert(`房間邀請碼：${code}`);
+            }
+        };
+
+        // 取消等待，返回大廳
+        window.cancelRoomWait = function() {
+            window.leaveCurrentRoom();
+            document.getElementById('scene-pvp-waiting').classList.add('hidden');
+            document.getElementById('scene-pvp-lobby').classList.remove('hidden');
+        };
+
+        // 對手斷線回調
+        window.onPeerDisconnected = function() {
+            window.gameState.pvpOpponentConnected = false;
+            if (!window.gameState.isGameOver && window.gameState.mode === 'pvp') {
+                window.logMessage("⚠️ 對手已斷線連線！");
+                setTimeout(() => {
+                    if (!window.gameState.isGameOver && !window.gameState.pvpOpponentConnected) {
+                        alert("對手已斷線，遊戲結束。請返回大廳重新建立或加入房間。");
                     }
-                }
-            };
+                }, 500);
+            }
         };
 
         // 打出/鎖定卡牌 (修正防重複覆蓋邏輯)
-        window.playSelectedCard = async function() {
+        window.playSelectedCard = function() {
             if (window.gameState.selectedCardIndex === null || window.gameState.isGameOver) return;
 
             const card = window.gameState.playerHand[window.gameState.selectedCardIndex];
@@ -1498,9 +1727,11 @@
             if (window.gameState.mode === 'pvp') {
                 if (window.gameState.isReadyThisRound) return;
 
+                // 處理連動決議（extraTurn）：先打出第一張，再打出第二張
                 if (card.type === 'politics' && card.polType === 'extraTurn' && !window.gameState.pvpExtraTurnCard) {
                     if (card.cost > 0) window.gameState.playerEnergy -= card.cost;
-                    
+
+                    // 連動決議在本地立即生效（護盾+額外行動）
                     window.executeCardEffect(card, 'player');
                     window.gameState.pvpExtraTurnCard = card;
                     window.gameState.playerHand.splice(window.gameState.selectedCardIndex, 1);
@@ -1517,10 +1748,8 @@
                 }
 
                 if (card.cost > 0) window.gameState.playerEnergy -= card.cost;
-                
-                // 本地立即設為鎖定，防止輪詢干擾
-                window.gameState.isReadyThisRound = true;
 
+                // 組合連動卡牌
                 let finalPlayedCard = card;
                 if (window.gameState.pvpExtraTurnCard) {
                     finalPlayedCard = {
@@ -1532,6 +1761,7 @@
                     window.gameState.pvpExtraTurnCard = null;
                 }
 
+                // 從手牌中移除
                 window.gameState.playerHand.splice(window.gameState.selectedCardIndex, 1);
                 window.gameState.selectedCardIndex = null;
 
@@ -1539,42 +1769,48 @@
                     window.gameState.playerHand = window.generateGuaranteedHand();
                 }
 
+                // 設定鎖定狀態
+                window.gameState.isReadyThisRound = true;
+                window.gameState.pvpChosenCard = finalPlayedCard;
                 window.renderHand();
 
                 const isHost = window.gameState.playerRole === 'host';
                 const hasStun = (card.type === 'politics' && card.polType === 'stun') ||
                                 (finalPlayedCard.isCombo && (finalPlayedCard.card1.polType === 'stun' || finalPlayedCard.card2.polType === 'stun'));
 
-                const roomId = window.gameState.roomId;
-                const now = Date.now();
-                window.gameState.lastStateTime = now;
-
-                const currentData = window.gameState.pvpRoomData || {};
-                currentData.updatedAt = now;
-
                 if (isHost) {
-                    if (!currentData.host) currentData.host = {};
-                    currentData.host.isReady = true;
-                    currentData.host.chosenCard = finalPlayedCard;
-                    if (hasStun && currentData.guest) currentData.guest.isStunned = true;
-                    
-                    window.peerEngine.send({ type: 'SYNC_STATE', data: currentData });
-                    await window.publicRelay.postState(roomId, currentData);
-                    window.handlePvpSyncData(currentData);
+                    // Host 端：直接更新權威資料
+                    const data = window.gameState.pvpRoomData;
+                    if (data && data.host) {
+                        data.host.isReady = true;
+                        data.host.chosenCard = finalPlayedCard;
+                        data.host.energy = window.gameState.playerEnergy;
+                        data.host.politics = window.gameState.playerPolitics;
+                        if (hasStun && data.guest) {
+                            data.guest.isStunned = true;
+                        }
+                        data.version++;
+                        data.lastAction = '我方已鎖定出牌，等待對方...';
+                        window.peerEngine.send({ type: 'SYNC_STATE', data: data });
+                        window.updatePvpReadyStatus(data);
+                        window.logMessage("已鎖定出牌，等待對方...");
+                        window.checkPvpRoundResolve();
+                    }
                 } else {
-                    if (!currentData.guest) currentData.guest = {};
-                    currentData.guest.isReady = true;
-                    currentData.guest.chosenCard = finalPlayedCard;
-                    if (hasStun && currentData.host) currentData.host.isStunned = true;
-
+                    // Guest 端：發送出牌請求給 Host
                     window.peerEngine.send({
                         type: 'GUEST_PLAY_CARD',
-                        chosenCard: finalPlayedCard,
-                        isStunned: hasStun
+                        chosenCard: finalPlayedCard
                     });
-                    
-                    await window.publicRelay.postState(roomId, currentData);
-                    window.handlePvpSyncData(currentData);
+                    window.logMessage("已鎖定出牌，等待對方...");
+
+                    // 更新本地 UI 狀態
+                    const data = window.gameState.pvpRoomData;
+                    if (data && data.guest) {
+                        data.guest.isReady = true;
+                        data.guest.chosenCard = finalPlayedCard;
+                    }
+                    window.updatePvpReadyStatus(data);
                 }
                 return;
             }
@@ -1832,14 +2068,6 @@
             const modal = document.getElementById('modal-result');
             if (modal && !modal.classList.contains('hidden')) return;
 
-            // 確保切斷監聽器，釋放效能，防止重複觸發
-            if (window.gameState.roomUnsubscribe) {
-                try {
-                    window.gameState.roomUnsubscribe();
-                } catch(e) {}
-                window.gameState.roomUnsubscribe = null;
-            }
-
             window.gameState.isGameOver = true;
 
             const isPvp = window.gameState.mode === 'pvp';
@@ -1908,8 +2136,12 @@
         };
 
         window.addEventListener('beforeunload', () => {
-            if (window.gameState.roomId) {
-                window.leaveCurrentRoom();
+            if (window.gameState.roomId && window.gameState.mode === 'pvp') {
+                // 嘗試通知對手
+                try {
+                    window.peerEngine.send({ type: 'GUEST_LEAVE' });
+                } catch(e) {}
+                window.peerEngine.destroy();
             }
         });
     </script>
