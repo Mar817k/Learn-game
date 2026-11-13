@@ -411,6 +411,72 @@
             </div>
         </section>
 
+        <!-- 畫面 0.7: 剪刀石頭布決定先選陣營權 -->
+        <section id="scene-rps" class="hidden flex-1 flex flex-col justify-center items-center py-6">
+            <div class="w-full max-w-lg bg-stone-950 border border-stone-800 rounded-2xl p-6 md:p-8 shadow-xl text-center">
+                <!-- 標題 -->
+                <div class="mb-2">
+                    <div class="inline-block text-4xl mb-2">✊✌️🖐️</div>
+                    <h2 class="font-serif-tc text-xl font-bold text-amber-400 mb-1">剪刀石頭布</h2>
+                    <p class="text-xs text-stone-400">贏家優先選擇歷史陣營！</p>
+                </div>
+
+                <!-- 回合指示 -->
+                <div id="rps-round-tag" class="text-[10px] text-stone-500 mb-4">第 1 輪</div>
+
+                <!-- 對決區域 -->
+                <div class="flex justify-center items-center gap-6 mb-6">
+                    <!-- 我方 -->
+                    <div class="flex flex-col items-center">
+                        <div class="text-[10px] text-stone-400 mb-1">我方</div>
+                        <div id="rps-my-display" class="w-20 h-20 rounded-xl bg-stone-900 border-2 border-stone-700 flex items-center justify-center text-4xl">
+                            ❓
+                        </div>
+                        <div id="rps-my-label" class="text-[10px] text-amber-400 mt-1">等待選擇</div>
+                    </div>
+
+                    <!-- VS -->
+                    <div class="text-2xl font-black text-red-500">VS</div>
+
+                    <!-- 對手 -->
+                    <div class="flex flex-col items-center">
+                        <div class="text-[10px] text-stone-400 mb-1">對手</div>
+                        <div id="rps-opp-display" class="w-20 h-20 rounded-xl bg-stone-900 border-2 border-stone-700 flex items-center justify-center text-4xl">
+                            ❓
+                        </div>
+                        <div id="rps-opp-label" class="text-[10px] text-stone-400 mt-1">等待選擇</div>
+                    </div>
+                </div>
+
+                <!-- 選擇按鈕區域 -->
+                <div id="rps-choices" class="flex justify-center gap-4 mb-4">
+                    <button onclick="window.rpsChoose('rock')" class="rps-btn group w-20 h-20 rounded-xl bg-stone-900 border-2 border-stone-700 hover:border-amber-500 hover:bg-amber-950/40 flex flex-col items-center justify-center transition-all active:scale-95">
+                        <span class="text-3xl group-hover:scale-110 transition">✊</span>
+                        <span class="text-[9px] text-stone-400 group-hover:text-amber-400 mt-0.5">石頭</span>
+                    </button>
+                    <button onclick="window.rpsChoose('scissors')" class="rps-btn group w-20 h-20 rounded-xl bg-stone-900 border-2 border-stone-700 hover:border-amber-500 hover:bg-amber-950/40 flex flex-col items-center justify-center transition-all active:scale-95">
+                        <span class="text-3xl group-hover:scale-110 transition">✌️</span>
+                        <span class="text-[9px] text-stone-400 group-hover:text-amber-400 mt-0.5">剪刀</span>
+                    </button>
+                    <button onclick="window.rpsChoose('paper')" class="rps-btn group w-20 h-20 rounded-xl bg-stone-900 border-2 border-stone-700 hover:border-amber-500 hover:bg-amber-950/40 flex flex-col items-center justify-center transition-all active:scale-95">
+                        <span class="text-3xl group-hover:scale-110 transition">🖐️</span>
+                        <span class="text-[9px] text-stone-400 group-hover:text-amber-400 mt-0.5">布</span>
+                    </button>
+                </div>
+
+                <!-- 狀態提示 -->
+                <div id="rps-status" class="text-sm text-amber-300 font-bold min-h-[1.5rem]">
+                    請選擇你的出手！
+                </div>
+
+                <!-- 結果展示（隱藏，結算後顯示） -->
+                <div id="rps-result" class="hidden mt-4 bg-stone-900 rounded-xl p-3">
+                    <div id="rps-result-text" class="text-base font-bold"></div>
+                    <div id="rps-result-detail" class="text-xs text-stone-400 mt-1"></div>
+                </div>
+            </div>
+        </section>
+
         <!-- 畫面 1: 選擇歷史時期與陣營 -->
         <section id="scene-faction-select" class="hidden flex-1 flex flex-col justify-center items-center py-4 relative">
             <!-- 頂部返回按鈕 -->
@@ -450,6 +516,22 @@
             <div class="text-center max-w-xl mb-4">
                 <h3 class="font-serif-tc text-lg md:text-xl font-bold text-stone-300">第二步：選擇你的歷史陣營</h3>
                 <p id="era-description" class="text-xs text-amber-500/90 mt-1 min-h-[1.5rem]">【辛亥革命】革命黨人起義推翻滿清專制，清政府皇族內閣垂死掙扎。</p>
+            </div>
+
+            <!-- PVP 模式下：提示誰在選陣營 / 等待對方選擇 -->
+            <div id="pvp-faction-waiting" class="hidden w-full max-w-3xl mb-4 bg-blue-950/40 border border-blue-700/50 rounded-xl p-3 text-center">
+                <div class="flex items-center justify-center gap-2 text-sm text-blue-300">
+                    <i class="fa-solid fa-spinner fa-spin"></i>
+                    <span id="pvp-faction-waiting-text">對手正在選擇陣營，請稍候...</span>
+                </div>
+            </div>
+
+            <!-- PVP 建房確認區域（RPS 前顯示） -->
+            <div id="pvp-create-confirm" class="hidden w-full max-w-3xl mb-4 bg-amber-950/30 border border-amber-700/50 rounded-xl p-4 text-center">
+                <p class="text-sm text-amber-300 mb-3"><i class="fa-solid fa-info-circle"></i> 確認歷史時期後建立房間，對手加入後將進行剪刀石頭布決定先選陣營權。</p>
+                <button onclick="window.createPvpRoomFromEra()" class="bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-stone-950 font-bold py-2.5 px-6 rounded-xl text-sm border border-amber-400 transition shadow-md">
+                    <i class="fa-solid fa-flag"></i> 確認時期並建立房間
+                </button>
             </div>
 
             <!-- 可選陣營列表 -->
@@ -671,7 +753,15 @@
             pvpChosenCard: null,           // 我方選定的卡牌（發送給 Host）
             pvpOpponentConnected: false,   // 對手是否已連線
             pvpBattleInited: false,        // PVP 戰鬥畫面是否已初始化
-            pvpStateVersion: 0             // 狀態版本號（防重複處理）
+            pvpStateVersion: 0,            // 狀態版本號（防重複處理）
+            // 剪刀石頭布相關
+            rpsPhase: 'idle',             // 'idle' | 'choosing' | 'reveal' | 'done'
+            rpsMyChoice: null,            // 'rock' | 'scissors' | 'paper' | null
+            rpsOpponentChoice: null,      // 對手的選擇
+            rpsWinner: null,              // 'host' | 'guest' | 'tie' | null
+            rpsRound: 0,                  // 第幾輪 RPS（平局時累加）
+            factionSelectTurn: null,      // 'me' | 'opponent' — 誰先選陣營
+            pvpBattleSceneInited: false   // 戰鬥畫面是否已初始化（區別於連線初始化）
         };
 
         // 時期簡介
@@ -968,6 +1058,8 @@
             document.getElementById('scene-pvp-lobby').classList.add('hidden');
             document.getElementById('scene-faction-select').classList.add('hidden');
             document.getElementById('scene-battle').classList.add('hidden');
+            document.getElementById('scene-rps').classList.add('hidden');
+            document.getElementById('pvp-faction-waiting').classList.add('hidden');
             document.getElementById('scene-mode-select').classList.remove('hidden');
             document.getElementById('btn-restart').classList.add('hidden');
             // 隱藏 PVP 戰鬥中的特殊 UI
@@ -1009,10 +1101,17 @@
             window.gameState.roomId = null;
             window.gameState.pvpOpponentConnected = false;
             window.gameState.pvpBattleInited = false;
+            window.gameState.pvpBattleSceneInited = false;
             window.gameState.isReadyThisRound = false;
             window.gameState.pvpChosenCard = null;
             window.gameState.pvpExtraTurnCard = null;
             window.gameState.pvpStateVersion = 0;
+            window.gameState.factionSelectTurn = null;
+            window.gameState.rpsPhase = 'idle';
+            window.gameState.rpsMyChoice = null;
+            window.gameState.rpsOpponentChoice = null;
+            window.gameState.rpsWinner = null;
+            window.gameState.rpsRound = 0;
         };
 
         // 選擇/切換手牌 (修復卡牌點擊選取功能)
@@ -1062,6 +1161,23 @@
             const descEl = document.getElementById('era-description');
             if (descEl && window.ERA_DESCRIPTIONS[eraKey]) {
                 descEl.innerText = window.ERA_DESCRIPTIONS[eraKey];
+            }
+
+            // PVP 建房階段（RPS 前）：顯示建房確認按鈕，隱藏陣營列表
+            const isPvpCreatePreRps = window.gameState.mode === 'pvp_create' && !window.gameState.factionSelectTurn;
+            const createConfirm = document.getElementById('pvp-create-confirm');
+            const factionGrid = document.getElementById('faction-grid');
+            const factionTitle = document.querySelector('#scene-faction-select h3');
+
+            if (isPvpCreatePreRps) {
+                // 建房階段：只選時期，不選陣營
+                if (createConfirm) createConfirm.classList.remove('hidden');
+                if (factionGrid) factionGrid.classList.add('hidden');
+                if (factionTitle) factionTitle.innerText = '選擇歷史時期';
+            } else {
+                if (createConfirm) createConfirm.classList.add('hidden');
+                if (factionGrid) factionGrid.classList.remove('hidden');
+                if (factionTitle) factionTitle.innerText = '第二步：選擇你的歷史陣營';
             }
 
             window.renderFactionGrid();
@@ -1120,6 +1236,13 @@
                 const playerFaction = eraData.factions.find(f => f.id === factionId);
                 if (!playerFaction) return;
 
+                // PVP 模式：RPS 贏家選好陣營後，進入戰鬥
+                if (window.gameState.mode === 'pvp_create' && window.gameState.factionSelectTurn === 'me') {
+                    window.finalizePvpFactionSelect(playerFaction);
+                    return;
+                }
+
+                // PVP 模式：最初建房時選陣營（舊流程，RPS 前的建房入口）
                 if (window.gameState.mode === 'pvp_create') {
                     window.createPvpRoomWithFaction(playerFaction);
                     return;
@@ -1186,21 +1309,23 @@
         // PVP 線上對戰核心邏輯（純 PeerJS P2P，Host 為權威伺服器）
         // ============================================================
 
-        // 建立房間：進入陣營選擇畫面
+        // 建立房間：進入時期選擇畫面（不再提前選陣營，陣營在 RPS 後選）
         window.openCreateRoomModal = function() {
             window.gameState.mode = 'pvp_create';
+            window.gameState.factionSelectTurn = null; // 尚未確定誰先選
             document.getElementById('scene-pvp-lobby').classList.add('hidden');
             document.getElementById('scene-faction-select').classList.remove('hidden');
+            document.getElementById('pvp-faction-waiting').classList.add('hidden');
             window.changeEra('era1');
         };
 
-        // Host 選好陣營後建立房間
-        window.createPvpRoomWithFaction = function(faction) {
+        // Host 選好時期後建立房間（不提前選陣營，RPS 後才選）
+        window.createPvpRoomFromEra = function() {
             const roomId = Math.floor(100000 + Math.random() * 900000).toString();
             window.gameState.roomId = roomId;
             window.gameState.playerRole = 'host';
-            window.gameState.playerFaction = faction;
             window.gameState.mode = 'pvp';
+            window.gameState.factionSelectTurn = null;
 
             // 隨機環境事件
             const envs = window.ERA_HISTORICAL_EVENTS[window.gameState.currentEra];
@@ -1222,9 +1347,16 @@
             window.gameState.pvpExtraTurnCard = null;
             window.gameState.pvpOpponentConnected = false;
             window.gameState.pvpBattleInited = false;
+            window.gameState.pvpBattleSceneInited = false;
             window.gameState.pvpStateVersion = 0;
+            window.gameState.rpsPhase = 'idle';
+            window.gameState.rpsMyChoice = null;
+            window.gameState.rpsOpponentChoice = null;
+            window.gameState.rpsWinner = null;
+            window.gameState.rpsRound = 0;
 
             // 建立權威遊戲資料（Host 端維護）
+            // Host 尚未選陣營，使用臨時佔位
             window.gameState.pvpRoomData = {
                 roomId: roomId,
                 era: window.gameState.currentEra,
@@ -1232,10 +1364,10 @@
                 status: 'waiting',
                 round: 1,
                 host: {
-                    name: faction.name,
-                    avatar: faction.avatar,
-                    tag: faction.tag,
-                    id: faction.id,
+                    name: '房主',
+                    avatar: '⚔️',
+                    tag: '等待選擇',
+                    id: 'host_pending',
                     hp: 100,
                     energy: 2,
                     politics: null,
@@ -1260,7 +1392,7 @@
                     const msgs = {
                         connecting: '正在建立房間通道...',
                         waiting: '等待對手加入...',
-                        connected: '對手已連線！正在進入對戰...',
+                        connected: '對手已連線！即將進入剪刀石頭布...',
                         error: msg || '連線發生錯誤',
                         disconnected: '對手已斷線',
                         reconnecting: '正在重新連線...'
@@ -1297,14 +1429,42 @@
                     isReady: false,
                     isStunned: false
                 };
+                data.status = 'rps'; // 進入剪刀石頭布階段
+                data.version++;
+                data.lastAction = `${remoteData.guest.name} 已加入！開始剪刀石頭布決定先選權。`;
+
+                // 推送狀態給 Guest（進入 RPS 畫面）
+                window.peerEngine.send({ type: 'SYNC_STATE', data: data });
+                // Host 端也進入 RPS 畫面
+                window.enterRpsPhase(data);
+            } else if (remoteData.type === 'RPS_CHOICE') {
+                // Guest 的 RPS 選擇
+                window.gameState.rpsOpponentChoice = remoteData.choice;
+                window.checkRpsResolve();
+            } else if (remoteData.type === 'GUEST_FACTION_CHOSEN') {
+                // Guest（RPS 贏家）選好了陣營
+                const guestFaction = remoteData.faction;
+                const eraFactions = window.FACTION_DATA[data.era].factions;
+                const hostFaction = eraFactions.find(f => f.id === guestFaction.enemyId) || eraFactions.find(f => f.id !== guestFaction.id);
+
+                // 更新權威資料
+                data.guest.id = guestFaction.id;
+                data.guest.name = guestFaction.name;
+                data.guest.avatar = guestFaction.avatar;
+                data.guest.tag = guestFaction.tag;
+                data.host.id = hostFaction.id;
+                data.host.name = hostFaction.name;
+                data.host.avatar = hostFaction.avatar;
+                data.host.tag = hostFaction.tag;
                 data.status = 'playing';
                 data.version++;
-                data.lastAction = `${remoteData.guest.name} 已加入對決！`;
+                data.lastAction = '陣營已確定！對決開始！';
 
-                // 推送完整狀態給 Guest
+                // 推送給 Guest
                 window.peerEngine.send({ type: 'SYNC_STATE', data: data });
-                // 進入戰鬥畫面
-                window.enterPvpBattle(data);
+
+                // Host 端進入戰鬥（Host 是輸家，自動分配敵方陣營）
+                window.enterPvpBattleAfterRps(data, hostFaction, guestFaction);
             } else if (remoteData.type === 'GUEST_PLAY_CARD') {
                 if (!data.guest) return;
                 data.guest.isReady = true;
@@ -1339,7 +1499,14 @@
             window.gameState.pvpExtraTurnCard = null;
             window.gameState.pvpOpponentConnected = false;
             window.gameState.pvpBattleInited = false;
+            window.gameState.pvpBattleSceneInited = false;
             window.gameState.pvpStateVersion = 0;
+            window.gameState.factionSelectTurn = null;
+            window.gameState.rpsPhase = 'idle';
+            window.gameState.rpsMyChoice = null;
+            window.gameState.rpsOpponentChoice = null;
+            window.gameState.rpsWinner = null;
+            window.gameState.rpsRound = 0;
 
             // 顯示連線中狀態
             window.showPvpStatus('正在連線至房間...', 'connecting');
@@ -1405,62 +1572,108 @@
             const oppData = data.host;
             const myData = data.guest;
 
-            // 首次收到完整遊戲資料（guest 存在且有 id）時，初始化戰鬥畫面
-            if (myData && myData.id && myData.id !== 'guest_pending' && !window.gameState.pvpBattleInited) {
-                window.gameState.pvpBattleInited = true;
-
-                // 初始化遊戲狀態
-                window.gameState.playerHp = myData.hp || 100;
-                window.gameState.aiHp = oppData.hp || 100;
-                window.gameState.playerEnergy = myData.energy || 2;
-                window.gameState.playerPolitics = myData.politics || null;
-                window.gameState.aiPolitics = oppData.politics || null;
-                window.gameState.isPlayerStunned = myData.isStunned || false;
-                window.gameState.isAiStunned = oppData.isStunned || false;
-                window.gameState.isGameOver = false;
-
-                // 設定陣營
-                const eraFactions = window.FACTION_DATA[data.era].factions;
-                const myFaction = eraFactions.find(f => f.id === myData.id);
-                if (myFaction) {
-                    window.gameState.playerFaction = myFaction;
-                    document.getElementById('player-name').innerText = myFaction.name;
-                    document.getElementById('player-avatar').innerText = myFaction.avatar;
-                    document.getElementById('player-faction-tag').innerText = myFaction.tag;
+            // ===== RPS 階段處理 =====
+            if (data.status === 'rps') {
+                if (!window.gameState.pvpBattleInited) {
+                    window.gameState.pvpBattleInited = true; // 標記已連線
+                    // Guest 首次收到 RPS 階段：進入 RPS 畫面
+                    window.enterRpsPhase(data);
                 }
-                const oppFaction = eraFactions.find(f => f.id === oppData.id);
-                if (oppFaction) {
-                    window.gameState.aiFaction = oppFaction;
+                // 如果 Host 推送了 RPS 結果，顯示它
+                if (data.rpsResult) {
+                    // Guest 的選擇是 guestChoice，對手（Host）的是 hostChoice
+                    window.gameState.rpsMyChoice = data.rpsResult.guestChoice;
+                    window.gameState.rpsOpponentChoice = data.rpsResult.hostChoice;
+                    window.gameState.rpsWinner = data.rpsResult.winner;
+                    window.showRpsResult(data.rpsResult.winner, data.rpsResult.winner);
+                } else if (window.gameState.rpsPhase === 'reveal') {
+                    // rpsResult 被清除 = 進入新一輪 RPS
+                    window.gameState.rpsMyChoice = null;
+                    window.gameState.rpsOpponentChoice = null;
+                    window.gameState.rpsWinner = null;
+                    window.enterRpsPhase(data);
                 }
+                if (data.lastAction) window.logMessage(data.lastAction);
+                return;
+            }
 
-                // 對手 UI
-                document.getElementById('ai-name').innerText = oppData.name;
-                document.getElementById('ai-avatar').innerText = oppData.avatar;
-                document.getElementById('ai-faction-tag').innerText = oppData.tag;
+            // ===== 陣營選擇等待階段（Host 先選，Guest 等待） =====
+            if (data.status === 'faction_select_host') {
+                // Host 正在選陣營，Guest 等待
+                window.gameState.factionSelectTurn = 'opponent';
+                window.showFactionSelectWaiting(data);
+                if (data.lastAction) window.logMessage(data.lastAction);
+                return;
+            }
 
-                // 時期標籤
-                document.getElementById('battle-era-tag').innerText = window.ERA_DESCRIPTIONS[data.era].split('】')[0] + '】';
+            // ===== Guest 先選陣營階段 =====
+            if (data.status === 'faction_select_guest') {
+                window.gameState.factionSelectTurn = 'me';
+                window.showPvpFactionSelect();
+                if (data.lastAction) window.logMessage(data.lastAction);
+                return;
+            }
 
-                // 房間號標籤
-                document.getElementById('pvp-room-code-tag').innerText = `房間號: ${window.gameState.roomId}`;
-                document.getElementById('pvp-room-code-tag').classList.remove('hidden');
-                document.getElementById('pvp-readiness-indicator').classList.remove('hidden');
+            // ===== 陣營已確定，進入戰鬥 =====
+            if (data.status === 'playing' || data.status === 'ended') {
+                // 首次收到完整遊戲資料（guest 存在且有真實 id）時，初始化戰鬥畫面
+                if (myData && myData.id && myData.id !== 'guest_pending' && !window.gameState.pvpBattleSceneInited) {
+                    window.gameState.pvpBattleSceneInited = true;
 
-                // 初始化手牌
-                window.gameState.playerHand = window.generateGuaranteedHand();
+                    // 初始化遊戲狀態
+                    window.gameState.playerHp = myData.hp || 100;
+                    window.gameState.aiHp = oppData.hp || 100;
+                    window.gameState.playerEnergy = myData.energy || 2;
+                    window.gameState.playerPolitics = myData.politics || null;
+                    window.gameState.aiPolitics = oppData.politics || null;
+                    window.gameState.isPlayerStunned = myData.isStunned || false;
+                    window.gameState.isAiStunned = oppData.isStunned || false;
+                    window.gameState.isGameOver = false;
 
-                // 切換到戰鬥畫面
-                document.getElementById('scene-pvp-lobby').classList.add('hidden');
-                document.getElementById('scene-faction-select').classList.add('hidden');
-                document.getElementById('scene-pvp-waiting').classList.add('hidden');
-                document.getElementById('scene-battle').classList.remove('hidden');
-                document.getElementById('btn-restart').classList.remove('hidden');
+                    // 設定陣營
+                    const eraFactions = window.FACTION_DATA[data.era].factions;
+                    const myFaction = eraFactions.find(f => f.id === myData.id);
+                    if (myFaction) {
+                        window.gameState.playerFaction = myFaction;
+                        document.getElementById('player-name').innerText = myFaction.name;
+                        document.getElementById('player-avatar').innerText = myFaction.avatar;
+                        document.getElementById('player-faction-tag').innerText = myFaction.tag;
+                    }
+                    const oppFaction = eraFactions.find(f => f.id === oppData.id);
+                    if (oppFaction) {
+                        window.gameState.aiFaction = oppFaction;
+                    }
 
-                // 隱藏大廳狀態提示
-                const banner = document.getElementById('pvp-status-banner');
-                if (banner) banner.classList.add('hidden');
+                    // 對手 UI
+                    document.getElementById('ai-name').innerText = oppData.name;
+                    document.getElementById('ai-avatar').innerText = oppData.avatar;
+                    document.getElementById('ai-faction-tag').innerText = oppData.tag;
 
-                window.logMessage("已連線至房間！對決開始，請選擇手牌打出。");
+                    // 時期標籤
+                    document.getElementById('battle-era-tag').innerText = window.ERA_DESCRIPTIONS[data.era].split('】')[0] + '】';
+
+                    // 房間號標籤
+                    document.getElementById('pvp-room-code-tag').innerText = `房間號: ${window.gameState.roomId}`;
+                    document.getElementById('pvp-room-code-tag').classList.remove('hidden');
+                    document.getElementById('pvp-readiness-indicator').classList.remove('hidden');
+
+                    // 初始化手牌
+                    window.gameState.playerHand = window.generateGuaranteedHand();
+
+                    // 切換到戰鬥畫面
+                    document.getElementById('scene-pvp-lobby').classList.add('hidden');
+                    document.getElementById('scene-faction-select').classList.add('hidden');
+                    document.getElementById('scene-pvp-waiting').classList.add('hidden');
+                    document.getElementById('scene-rps').classList.add('hidden');
+                    document.getElementById('scene-battle').classList.remove('hidden');
+                    document.getElementById('btn-restart').classList.remove('hidden');
+
+                    // 隱藏大廳狀態提示
+                    const banner = document.getElementById('pvp-status-banner');
+                    if (banner) banner.classList.add('hidden');
+
+                    window.logMessage("陣營已確定！對決開始，請選擇手牌打出。");
+                }
             }
 
             if (oppData) {
@@ -1498,6 +1711,415 @@
                     window.gameState.isGameOver = true;
                     setTimeout(() => window.showGameResult(), 400);
                 }
+            }
+        };
+
+        // ============================================================
+        // 剪刀石頭布（RPS）核心邏輯
+        // ============================================================
+
+        // RPS 出手對應的 emoji 和中文名稱
+        window.RPS_DATA = {
+            rock:     { emoji: '✊', name: '石頭' },
+            scissors: { emoji: '✌️', name: '剪刀' },
+            paper:    { emoji: '🖐️', name: '布' }
+        };
+
+        // 判定 RPS 勝負：回傳 'host' | 'guest' | 'tie'
+        window.rpsJudge = function(hostChoice, guestChoice) {
+            if (hostChoice === guestChoice) return 'tie';
+            const wins = { rock: 'scissors', scissors: 'paper', paper: 'rock' };
+            return wins[hostChoice] === guestChoice ? 'host' : 'guest';
+        };
+
+        // 進入 RPS 畫面（Host 和 Guest 都會呼叫）
+        window.enterRpsPhase = function(data) {
+            window.gameState.rpsPhase = 'choosing';
+            window.gameState.rpsMyChoice = null;
+            window.gameState.rpsOpponentChoice = null;
+            window.gameState.rpsWinner = null;
+            window.gameState.rpsRound = (window.gameState.rpsRound || 0) + 1;
+
+            // 切換畫面
+            document.getElementById('scene-pvp-waiting').classList.add('hidden');
+            document.getElementById('scene-pvp-lobby').classList.add('hidden');
+            document.getElementById('scene-faction-select').classList.add('hidden');
+            document.getElementById('scene-rps').classList.remove('hidden');
+            document.getElementById('btn-restart').classList.remove('hidden');
+
+            // 重置 UI
+            document.getElementById('rps-my-display').innerText = '❓';
+            document.getElementById('rps-opp-display').innerText = '❓';
+            document.getElementById('rps-my-label').innerText = '等待選擇';
+            document.getElementById('rps-opp-label').innerText = '等待選擇';
+            document.getElementById('rps-round-tag').innerText = `第 ${window.gameState.rpsRound} 輪`;
+            document.getElementById('rps-status').innerText = '請選擇你的出手！';
+            document.getElementById('rps-status').className = 'text-sm text-amber-300 font-bold min-h-[1.5rem]';
+
+            // 顯示選擇按鈕
+            const choices = document.getElementById('rps-choices');
+            choices.style.display = 'flex';
+            choices.style.pointerEvents = 'auto';
+            choices.style.opacity = '1';
+
+            // 隱藏結果
+            document.getElementById('rps-result').classList.add('hidden');
+
+            // 房間號標籤
+            document.getElementById('pvp-room-code-tag').innerText = `房間號: ${window.gameState.roomId}`;
+            document.getElementById('pvp-room-code-tag').classList.remove('hidden');
+
+            window.logMessage(`剪刀石頭布第 ${window.gameState.rpsRound} 輪！請選擇出手。`);
+        };
+
+        // 玩家選擇 RPS 出手
+        window.rpsChoose = function(choice) {
+            if (window.gameState.rpsPhase !== 'choosing') return;
+            if (window.gameState.rpsMyChoice) return; // 已選過
+
+            window.gameState.rpsMyChoice = choice;
+            const rpsData = window.RPS_DATA[choice];
+
+            // 更新我方顯示
+            document.getElementById('rps-my-display').innerText = rpsData.emoji;
+            document.getElementById('rps-my-label').innerText = '已選擇';
+            document.getElementById('rps-status').innerText = '已鎖定出手！等待對方...';
+
+            // 禁用選擇按鈕
+            const choices = document.getElementById('rps-choices');
+            choices.style.pointerEvents = 'none';
+            choices.style.opacity = '0.5';
+
+            const isHost = window.gameState.playerRole === 'host';
+
+            if (isHost) {
+                // Host 端：記錄自己的選擇，等待 Guest 的選擇
+                window.gameState.rpsMyChoice = choice;
+                window.checkRpsResolve();
+            } else {
+                // Guest 端：發送選擇給 Host
+                window.peerEngine.send({
+                    type: 'RPS_CHOICE',
+                    choice: choice
+                });
+            }
+        };
+
+        // Host 端檢查雙方是否都已出手
+        window.checkRpsResolve = function() {
+            // Host 的選擇存在 rpsMyChoice，Guest 的選擇存在 rpsOpponentChoice
+            if (!window.gameState.rpsMyChoice || !window.gameState.rpsOpponentChoice) return;
+
+            window.gameState.rpsPhase = 'reveal';
+
+            const hostChoice = window.gameState.rpsMyChoice;
+            const guestChoice = window.gameState.rpsOpponentChoice;
+            const winner = window.rpsJudge(hostChoice, guestChoice);
+            window.gameState.rpsWinner = winner;
+
+            // 顯示結果
+            window.showRpsResult(winner, winner);
+
+            // 推送結果給 Guest
+            const data = window.gameState.pvpRoomData;
+            if (data) {
+                data.rpsResult = {
+                    hostChoice: hostChoice,
+                    guestChoice: guestChoice,
+                    winner: winner
+                };
+                data.version++;
+                data.lastAction = winner === 'tie'
+                    ? `平局！進入第 ${window.gameState.rpsRound + 1} 輪剪刀石頭布`
+                    : (winner === 'host' ? '房主贏得先選權！' : '挑戰者贏得先選權！');
+                window.peerEngine.send({ type: 'SYNC_STATE', data: data });
+            }
+
+            // 延遲後進入下一步
+            setTimeout(() => {
+                if (winner === 'tie') {
+                    // 平局：重新一輪
+                    window.gameState.rpsOpponentChoice = null;
+                    window.gameState.rpsMyChoice = null;
+                    window.gameState.rpsWinner = null;
+
+                    // 清除 rpsResult，通知 Guest 進入新一輪
+                    if (data) {
+                        data.rpsResult = null;
+                        data.version++;
+                        window.peerEngine.send({ type: 'SYNC_STATE', data: data });
+                    }
+
+                    // Host 進入新一輪 RPS
+                    window.enterRpsPhase(data);
+                } else {
+                    // 有勝者：進入陣營選擇階段
+                    window.enterFactionSelectPhase(winner);
+                }
+            }, 2500);
+        };
+
+        // 顯示 RPS 結果
+        window.showRpsResult = function(winner, displayWinner) {
+            window.gameState.rpsPhase = 'reveal';
+
+            const isHost = window.gameState.playerRole === 'host';
+            const myChoice = window.gameState.rpsMyChoice;
+            // Host 的對手選擇是 rpsOpponentChoice（即 Guest 的）
+            // Guest 的對手選擇也從 sync data 中取得
+            let oppChoice = window.gameState.rpsOpponentChoice;
+
+            // 如果是 Guest 且還沒有對手選擇，從 roomData 中取
+            if (!oppChoice) {
+                const data = window.gameState.pvpRoomData;
+                if (data && data.rpsResult) {
+                    if (isHost) {
+                        oppChoice = data.rpsResult.guestChoice;
+                    } else {
+                        oppChoice = data.rpsResult.hostChoice;
+                        // Guest 的選擇是 guestChoice
+                        if (!myChoice) window.gameState.rpsMyChoice = data.rpsResult.guestChoice;
+                    }
+                }
+            }
+
+            const myData = window.RPS_DATA[myChoice] || { emoji: '❓', name: '?' };
+            const oppData = window.RPS_DATA[oppChoice] || { emoji: '❓', name: '?' };
+
+            // 更新顯示
+            document.getElementById('rps-my-display').innerText = myData.emoji;
+            document.getElementById('rps-opp-display').innerText = oppData.emoji;
+            document.getElementById('rps-my-label').innerText = myData.name;
+            document.getElementById('rps-opp-label').innerText = oppData.name;
+
+            // 隱藏選擇按鈕
+            const choices = document.getElementById('rps-choices');
+            choices.style.pointerEvents = 'none';
+            choices.style.opacity = '0.3';
+
+            // 顯示結果
+            const resultEl = document.getElementById('rps-result');
+            const resultText = document.getElementById('rps-result-text');
+            const resultDetail = document.getElementById('rps-result-detail');
+            const statusEl = document.getElementById('rps-status');
+
+            if (winner === 'tie') {
+                resultText.innerText = '🤝 平局！';
+                resultText.className = 'text-base font-bold text-amber-400';
+                resultDetail.innerText = `雙方都出了${myData.name}，再來一輪！`;
+                statusEl.innerText = '平局！準備下一輪...';
+                statusEl.className = 'text-sm text-amber-300 font-bold min-h-[1.5rem]';
+            } else {
+                const iWon = (isHost && winner === 'host') || (!isHost && winner === 'guest');
+                if (iWon) {
+                    resultText.innerText = '🎉 你贏了！獲得優先選擇陣營權！';
+                    resultText.className = 'text-base font-bold text-green-400';
+                    statusEl.innerText = '你贏了！即將選擇陣營...';
+                    statusEl.className = 'text-sm text-green-400 font-bold min-h-[1.5rem]';
+                } else {
+                    resultText.innerText = '😢 你輸了！對方優先選擇陣營';
+                    resultText.className = 'text-base font-bold text-red-400';
+                    statusEl.innerText = '對方先選陣營，請稍候...';
+                    statusEl.className = 'text-sm text-red-400 font-bold min-h-[1.5rem]';
+                }
+                resultDetail.innerText = `${myData.name} VS ${oppData.name}`;
+            }
+            resultEl.classList.remove('hidden');
+        };
+
+        // ============================================================
+        // RPS 結束後的陣營選擇階段
+        // ============================================================
+
+        // Host 端：RPS 有勝者後，進入陣營選擇階段
+        window.enterFactionSelectPhase = function(rpsWinner) {
+            const data = window.gameState.pvpRoomData;
+            if (!data) return;
+
+            if (rpsWinner === 'host') {
+                // Host 贏了 → Host 先選陣營，Guest 等待
+                window.gameState.factionSelectTurn = 'me';
+                data.status = 'faction_select_host'; // Host 在選
+                data.version++;
+                data.lastAction = '房主獲得先選權！正在選擇陣營...';
+                window.peerEngine.send({ type: 'SYNC_STATE', data: data });
+
+                // Host 進入陣營選擇畫面
+                window.showPvpFactionSelect();
+            } else {
+                // Guest 贏了 → Guest 先選陣營，Host 等待
+                window.gameState.factionSelectTurn = 'opponent';
+                data.status = 'faction_select_guest'; // Guest 在選
+                data.version++;
+                data.lastAction = '挑戰者獲得先選權！請選擇陣營...';
+                window.peerEngine.send({ type: 'SYNC_STATE', data: data });
+
+                // Host 顯示等待畫面
+                window.showFactionSelectWaiting(data);
+            }
+        };
+
+        // 顯示 PVP 陣營選擇畫面（RPS 贏家使用）
+        window.showPvpFactionSelect = function() {
+            document.getElementById('scene-rps').classList.add('hidden');
+            document.getElementById('scene-faction-select').classList.remove('hidden');
+            document.getElementById('pvp-faction-waiting').classList.add('hidden');
+            document.getElementById('pvp-create-confirm').classList.add('hidden');
+
+            // 顯示陣營網格
+            const factionGrid = document.getElementById('faction-grid');
+            if (factionGrid) factionGrid.classList.remove('hidden');
+
+            // 更新標題
+            const factionTitle = document.querySelector('#scene-faction-select h3');
+            if (factionTitle) factionTitle.innerText = '選擇你的歷史陣營';
+
+            window.changeEra(window.gameState.currentEra || 'era1');
+
+            // 標記為 PVP 先選模式
+            window.gameState.mode = 'pvp_create';
+        };
+
+        // RPS 贏家選好陣營後，確定雙方陣營並進入戰鬥
+        window.finalizePvpFactionSelect = function(myFaction) {
+            const isHost = window.gameState.playerRole === 'host';
+            const data = window.gameState.pvpRoomData;
+            if (!data) return;
+
+            // 找出對方陣營（自動分配為我方的敵方）
+            const eraFactions = window.FACTION_DATA[window.gameState.currentEra].factions;
+            let enemyFaction = eraFactions.find(f => f.id === myFaction.enemyId);
+            if (!enemyFaction) {
+                enemyFaction = eraFactions.find(f => f.id !== myFaction.id);
+            }
+
+            // 更新權威資料
+            if (isHost) {
+                // Host 選了陣營
+                data.host.id = myFaction.id;
+                data.host.name = myFaction.name;
+                data.host.avatar = myFaction.avatar;
+                data.host.tag = myFaction.tag;
+
+                // Guest 自動分配敵方
+                data.guest.id = enemyFaction.id;
+                data.guest.name = enemyFaction.name;
+                data.guest.avatar = enemyFaction.avatar;
+                data.guest.tag = enemyFaction.tag;
+            } else {
+                // Guest 選了陣營（Guest 贏了 RPS）
+                data.guest.id = myFaction.id;
+                data.guest.name = myFaction.name;
+                data.guest.avatar = myFaction.avatar;
+                data.guest.tag = myFaction.tag;
+
+                // Host 自動分配敵方
+                data.host.id = enemyFaction.id;
+                data.host.name = enemyFaction.name;
+                data.host.avatar = enemyFaction.avatar;
+                data.host.tag = enemyFaction.tag;
+            }
+
+            data.status = 'playing';
+            data.version++;
+            data.lastAction = '陣營已確定！對決開始！';
+
+            // Host 推送狀態給 Guest
+            if (isHost) {
+                window.peerEngine.send({ type: 'SYNC_STATE', data: data });
+                // Host 端進入戰鬥
+                window.enterPvpBattleAfterRps(data, myFaction, enemyFaction);
+            } else {
+                // Guest 發送選擇給 Host，Host 會更新並推送
+                window.peerEngine.send({
+                    type: 'GUEST_FACTION_CHOSEN',
+                    faction: myFaction
+                });
+                // Guest 端也直接進入戰鬥（本地狀態）
+                window.enterPvpBattleAfterRps(data, myFaction, enemyFaction);
+            }
+        };
+
+        // RPS 後進入戰鬥畫面（雙方共用）
+        window.enterPvpBattleAfterRps = function(data, myFaction, enemyFaction) {
+            // 初始化遊戲狀態
+            window.gameState.playerFaction = myFaction;
+            window.gameState.aiFaction = enemyFaction;
+            window.gameState.playerHp = 100;
+            window.gameState.aiHp = 100;
+            window.gameState.playerEnergy = 2;
+            window.gameState.playerPolitics = null;
+            window.gameState.aiPolitics = null;
+            window.gameState.isPlayerStunned = false;
+            window.gameState.isAiStunned = false;
+            window.gameState.round = 1;
+            window.gameState.isGameOver = false;
+            window.gameState.isReadyThisRound = false;
+            window.gameState.pvpChosenCard = null;
+            window.gameState.pvpExtraTurnCard = null;
+            window.gameState.pvpBattleInited = true;
+            window.gameState.pvpBattleSceneInited = true;
+            window.gameState.pvpStateVersion = data.version;
+
+            // 隨機環境事件（如果還沒有）
+            if (!window.gameState.currentEnvEvent && data.env) {
+                window.gameState.currentEnvEvent = data.env;
+            }
+
+            // 綁定 UI
+            document.getElementById('player-name').innerText = myFaction.name;
+            document.getElementById('player-avatar').innerText = myFaction.avatar;
+            document.getElementById('player-faction-tag').innerText = myFaction.tag;
+
+            document.getElementById('ai-name').innerText = enemyFaction.name;
+            document.getElementById('ai-avatar').innerText = enemyFaction.avatar;
+            document.getElementById('ai-faction-tag').innerText = enemyFaction.tag;
+
+            document.getElementById('battle-era-tag').innerText = window.ERA_DESCRIPTIONS[window.gameState.currentEra].split('】')[0] + '】';
+
+            // 環境事件
+            if (window.gameState.currentEnvEvent) {
+                const env = window.gameState.currentEnvEvent;
+                document.getElementById('event-icon').innerText = env.icon;
+                document.getElementById('event-title').innerText = env.title;
+                document.getElementById('event-desc').innerText = env.desc;
+                document.getElementById('event-buff-tag').innerText = `效果提升 +${env.val}`;
+            }
+
+            // 房間號標籤
+            document.getElementById('pvp-room-code-tag').innerText = `房間號: ${window.gameState.roomId}`;
+            document.getElementById('pvp-room-code-tag').classList.remove('hidden');
+            document.getElementById('pvp-readiness-indicator').classList.remove('hidden');
+
+            // 初始化手牌
+            window.gameState.playerHand = window.generateGuaranteedHand();
+
+            // 切換畫面
+            document.getElementById('scene-rps').classList.add('hidden');
+            document.getElementById('scene-pvp-waiting').classList.add('hidden');
+            document.getElementById('scene-pvp-lobby').classList.add('hidden');
+            document.getElementById('scene-faction-select').classList.add('hidden');
+            document.getElementById('scene-battle').classList.remove('hidden');
+            document.getElementById('btn-restart').classList.remove('hidden');
+
+            window.updateUI();
+            window.renderHand();
+            window.logMessage("陣營已確定！對決開始，請選擇手牌打出。");
+        };
+
+        // 顯示「等待對方選擇陣營」
+        window.showFactionSelectWaiting = function(data) {
+            document.getElementById('scene-rps').classList.add('hidden');
+            document.getElementById('scene-faction-select').classList.add('hidden');
+            document.getElementById('scene-pvp-waiting').classList.add('hidden');
+            document.getElementById('scene-faction-select').classList.remove('hidden');
+            document.getElementById('pvp-faction-waiting').classList.remove('hidden');
+
+            const waitText = document.getElementById('pvp-faction-waiting-text');
+            if (data && data.host && data.host.name) {
+                waitText.innerText = `${data.host.name} 正在選擇陣營，請稍候...`;
+            } else {
+                waitText.innerText = '對手正在選擇陣營，請稍候...';
             }
         };
 
